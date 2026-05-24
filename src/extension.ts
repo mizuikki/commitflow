@@ -78,7 +78,7 @@ function createCombinedStatusBarItem(
     const profile = await configManager.getActiveProviderProfile(resourceUri).catch(() => undefined);
     const promptPreset = configManager.getConfig<PromptPreset>(
       ConfigKeys.PROMPT_PRESET,
-      'with-gitmoji',
+      'without-gitmoji',
       resourceUri
     );
     const language = configManager.getConfig<string>(

@@ -87,7 +87,7 @@ All settings live under the `ai-commit-plus.` prefix.
 | `PROVIDER_PROFILES` | array | `[]` | Saved provider profiles; API keys are stored in SecretStorage |
 | `ACTIVE_PROVIDER_PROFILE_ID` | string | `""` | Active profile ID; can be overridden per workspace or folder |
 | `AI_COMMIT_LANGUAGE` | string | `English` | Commit message language (19 options); supports per-repo overrides |
-| `PROMPT_PRESET` | string | `with-gitmoji` | `with-gitmoji`, `without-gitmoji`, or `custom`; supports per-repo overrides |
+| `PROMPT_PRESET` | string | `without-gitmoji` | `with-gitmoji`, `without-gitmoji`, or `custom`; supports per-repo overrides |
 | `AI_COMMIT_SYSTEM_PROMPT` | string | `""` | Custom system prompt used when `PROMPT_PRESET` is `custom` |
 
 ## Repository-Level Overrides

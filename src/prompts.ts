@@ -4,7 +4,7 @@ import { ConfigKeys, ConfigurationManager, PromptPreset } from './config';
 import { buildCommitTypeReferenceTable, getGitmojiForCommitType } from './gitmoji';
 
 const AI_COMMIT_NAMESPACE = 'ai-commit-plus';
-const DEFAULT_PROMPT_PRESET: PromptPreset = 'with-gitmoji';
+const DEFAULT_PROMPT_PRESET: PromptPreset = 'without-gitmoji';
 const COMMIT_PROMPT_TEMPLATE_PATH = 'prompt/commit.md';
 
 let commitPromptTemplateCache: string | undefined;

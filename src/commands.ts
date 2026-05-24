@@ -141,10 +141,10 @@ function getRepositoryPromptPresetState(resourceUri: vscode.Uri) {
   const inspectedPromptPreset = config.inspect<PromptPreset>(ConfigKeys.PROMPT_PRESET);
   const effectivePromptPreset = config.get<PromptPreset>(
     ConfigKeys.PROMPT_PRESET,
-    'with-gitmoji'
+    'without-gitmoji'
   );
 
-  let inheritedPromptPreset = inspectedPromptPreset?.defaultValue ?? 'with-gitmoji';
+  let inheritedPromptPreset = inspectedPromptPreset?.defaultValue ?? 'without-gitmoji';
   let overridePromptPreset: PromptPreset | undefined;
   if (target === vscode.ConfigurationTarget.WorkspaceFolder) {
     overridePromptPreset = inspectedPromptPreset?.workspaceFolderValue;
@@ -152,13 +152,13 @@ function getRepositoryPromptPresetState(resourceUri: vscode.Uri) {
       inspectedPromptPreset?.workspaceValue ??
       inspectedPromptPreset?.globalValue ??
       inspectedPromptPreset?.defaultValue ??
-      'with-gitmoji';
+      'without-gitmoji';
   } else if (target === vscode.ConfigurationTarget.Workspace) {
     overridePromptPreset = inspectedPromptPreset?.workspaceValue;
     inheritedPromptPreset =
       inspectedPromptPreset?.globalValue ??
       inspectedPromptPreset?.defaultValue ??
-      'with-gitmoji';
+      'without-gitmoji';
   } else {
     overridePromptPreset = inspectedPromptPreset?.globalValue;
   }
