@@ -8,12 +8,15 @@ jobs:
   lint-build-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version-file: .node-version
           cache: npm
       - run: npm ci
       - run: npm run lint
       - run: npm run build
-      - run: npm test
+      - name: Install Xvfb (for VS Code UI tests)
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+      - name: Run tests (headless via Xvfb)
+        run: xvfb-run -a npm test

@@ -1,6 +1,29 @@
 import * as assert from 'assert';
+import * as vscode from 'vscode';
+
+import { ConfigurationManager } from '../../config';
 
 suite('prompts', () => {
+  setup(() => {
+    ConfigurationManager.getInstance(({
+      subscriptions: [],
+      secrets: {
+        get: async () => undefined,
+        store: async () => undefined,
+        delete: async () => undefined
+      },
+      globalState: { get: () => undefined, update: async () => undefined, keys: () => [] },
+      workspaceState: { get: () => undefined, update: async () => undefined, keys: () => [] },
+      extensionPath: '',
+      extensionUri: vscode.Uri.file(process.cwd()),
+      environmentVariableCollection: {} as any,
+      asAbsolutePath: (relativePath: string) => relativePath,
+      storageUri: undefined,
+      globalStorageUri: undefined,
+      logUri: undefined
+    }) as unknown as vscode.ExtensionContext);
+  });
+
   suite('buildCommitTypeReferenceTable', () => {
     test('returns table with emoji column when includeGitmoji is true', async () => {
       const { buildCommitTypeReferenceTable } = await import('../../gitmoji');
