@@ -105,7 +105,7 @@ Run these commands from the Command Palette when the target repository is open:
 ## Local Development
 
 ```bash
-git clone https://github.com/mizuikk/ai-commit-plus.git
+git clone https://github.com/mizuikki/ai-commit-plus.git
 cd ai-commit-plus
 npm install
 ```
@@ -139,21 +139,21 @@ AI Commit Plus began as a fork of [Sitoi/ai-commit](https://github.com/Sitoi/ai-
 
 This project is [MIT](./license) licensed.
 
-[github-codespace-link]: https://codespaces.new/mizuikk/ai-commit-plus
-[github-codespace-shield]: https://github.com/mizuikk/ai-commit-plus/blob/main/images/codespaces.png?raw=true
-[github-contributors-link]: https://github.com/mizuikk/ai-commit-plus/graphs/contributors
-[github-contributors-shield]: https://img.shields.io/github/contributors/mizuikk/ai-commit-plus?color=c4f042&labelColor=black&style=flat-square
-[github-downloads-link]: https://github.com/mizuikk/ai-commit-plus/releases
-[github-downloads-shield]: https://img.shields.io/github/downloads/mizuikk/ai-commit-plus/total?label=downloads&labelColor=black&style=flat-square
-[github-issues-link]: https://github.com/mizuikk/ai-commit-plus/issues
-[github-issues-shield]: https://img.shields.io/github/issues/mizuikk/ai-commit-plus?color=ff80eb&labelColor=black&style=flat-square
-[github-license-link]: https://github.com/mizuikk/ai-commit-plus/blob/main/license
-[github-license-shield]: https://img.shields.io/github/license/mizuikk/ai-commit-plus?color=white&labelColor=black&style=flat-square
-[github-release-link]: https://github.com/mizuikk/ai-commit-plus/releases
-[github-release-shield]: https://img.shields.io/github/v/release/mizuikk/ai-commit-plus?display_name=tag&label=release&color=blue&labelColor=black&style=flat-square
-[github-stars-link]: https://github.com/mizuikk/ai-commit-plus/stargazers
-[github-stars-shield]: https://img.shields.io/github/stars/mizuikk/ai-commit-plus?color=ffcb47&labelColor=black&style=flat-square
-[pr-welcome-link]: https://github.com/mizuikk/ai-commit-plus/pulls
+[github-codespace-link]: https://codespaces.new/mizuikki/ai-commit-plus
+[github-codespace-shield]: https://github.com/mizuikki/ai-commit-plus/blob/main/images/codespaces.png?raw=true
+[github-contributors-link]: https://github.com/mizuikki/ai-commit-plus/graphs/contributors
+[github-contributors-shield]: https://img.shields.io/github/contributors/mizuikki/ai-commit-plus?color=c4f042&labelColor=black&style=flat-square
+[github-downloads-link]: https://github.com/mizuikki/ai-commit-plus/releases
+[github-downloads-shield]: https://img.shields.io/github/downloads/mizuikki/ai-commit-plus/total?label=downloads&labelColor=black&style=flat-square
+[github-issues-link]: https://github.com/mizuikki/ai-commit-plus/issues
+[github-issues-shield]: https://img.shields.io/github/issues/mizuikki/ai-commit-plus?color=ff80eb&labelColor=black&style=flat-square
+[github-license-link]: https://github.com/mizuikki/ai-commit-plus/blob/main/license
+[github-license-shield]: https://img.shields.io/github/license/mizuikki/ai-commit-plus?color=white&labelColor=black&style=flat-square
+[github-release-link]: https://github.com/mizuikki/ai-commit-plus/releases
+[github-release-shield]: https://img.shields.io/github/v/release/mizuikki/ai-commit-plus?display_name=tag&label=release&color=blue&labelColor=black&style=flat-square
+[github-stars-link]: https://github.com/mizuikki/ai-commit-plus/stargazers
+[github-stars-shield]: https://img.shields.io/github/stars/mizuikki/ai-commit-plus?color=ffcb47&labelColor=black&style=flat-square
+[pr-welcome-link]: https://github.com/mizuikki/ai-commit-plus/pulls
 [pr-welcome-shield]: https://img.shields.io/badge/PRs-welcome-ffcb47?labelColor=black&style=for-the-badge
-[github-contrib-link]: https://github.com/mizuikk/ai-commit-plus/graphs/contributors
-[github-contrib-shield]: https://contrib.rocks/image?repo=mizuikk%2Fai-commit-plus
+[github-contrib-link]: https://github.com/mizuikki/ai-commit-plus/graphs/contributors
+[github-contrib-shield]: https://contrib.rocks/image?repo=mizuikki%2Fai-commit-plus

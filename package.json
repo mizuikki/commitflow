@@ -23,8 +23,8 @@
     "AI Commit Plus",
     "Auto Commit"
   ],
-  "publisher": "mizuikk",
-  "repository": "https://github.com/mizuikk/ai-commit-plus",
+  "publisher": "mizuikki",
+  "repository": "https://github.com/mizuikki/ai-commit-plus",
   "icon": "images/logo.png",
   "contributes": {
     "commands": [
