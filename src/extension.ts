@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { CommandManager } from './commands';
 import { ConfigKeys, ConfigurationManager, PromptPreset } from './config';
+import { setLoggerContext } from './logger';
 
 function getPromptPresetLabel(promptPreset: PromptPreset): string {
   switch (promptPreset) {
@@ -162,6 +163,7 @@ function createCombinedStatusBarItem(
  */
 export async function activate(context: vscode.ExtensionContext) {
   try {
+    setLoggerContext(context);
     const configManager = ConfigurationManager.getInstance(context);
     await configManager.initialize();
 

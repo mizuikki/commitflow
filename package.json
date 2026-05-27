@@ -2,7 +2,7 @@
   "name": "ai-commit-plus",
   "displayName": "AI Commit Plus",
   "description": "Use OpenAI and Gemini APIs to review Git changes, generate conventional commit messages, and keep commit conventions consistent with the AI Commit Plus workflow.",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "engines": {
     "node": ">=24",
     "vscode": "^1.77.0"
@@ -174,6 +174,18 @@
           "type": "string",
           "default": "",
           "description": "Active provider profile id. Can be overridden per workspace or repository."
+        },
+        "ai-commit-plus.DEBUG_LOGGING": {
+          "type": "boolean",
+          "default": false,
+          "scope": "resource",
+          "markdownDescription": "Enable debug logs for troubleshooting. Logs are written to the \"AI Commit Plus\" Output channel. Avoid enabling this in shared workspaces if you consider repository metadata sensitive."
+        },
+        "ai-commit-plus.MAX_DIFF_CHARS": {
+          "type": "number",
+          "default": 200000,
+          "scope": "resource",
+          "markdownDescription": "Maximum number of characters allowed in the staged diff sent to the provider. If exceeded, AI Commit Plus will ask you to split the commit into smaller chunks."
         }
       },
       "title": "AI Commit Plus"
@@ -191,7 +203,7 @@
   "scripts": {
     "build": "webpack --mode production --devtool hidden-source-map",
     "compile": "webpack",
-    "compile-tests": "tsc -p tsconfig.test.json",
+    "compile-tests": "node -e \"require('node:fs').rmSync('out/test', { recursive: true, force: true })\" && tsc -p tsconfig.test.json",
     "lint": "eslint src --ext ts",
     "package": "node ./scripts/vsix.js package",
     "pretest": "npm run compile-tests && npm run compile && npm run lint",

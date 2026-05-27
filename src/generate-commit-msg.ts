@@ -6,6 +6,51 @@ import { ChatGPTAPI } from './openai-utils';
 import { getMainCommitPrompt } from './prompts';
 import { ProgressHandler } from './utils';
 import { GeminiAPI } from './gemini-utils';
+import { logDebug } from './logger';
+
+type HttpErrorLike = {
+  status?: number;
+  response?: { status?: number };
+  error?: { message?: string };
+  message?: string;
+};
+
+export function formatProviderErrorMessage(error: unknown, providerType: string): string {
+  const e = error as HttpErrorLike | undefined;
+  const status = e?.status ?? e?.response?.status;
+  const apiMessage = e?.error?.message || e?.message;
+
+  const defaultMessage = apiMessage || 'An unexpected error occurred';
+
+  if (providerType !== 'openai-compatible') {
+    return defaultMessage;
+  }
+
+  if (!status) {
+    return defaultMessage;
+  }
+
+  switch (status) {
+    case 400:
+      return apiMessage ? `Bad request: ${apiMessage}` : 'Bad request';
+    case 401:
+      return 'Invalid API key or unauthorized access';
+    case 402:
+      return apiMessage ? `Insufficient balance: ${apiMessage}` : 'Insufficient balance';
+    case 413:
+      return apiMessage ? `Request too large: ${apiMessage}` : 'Request too large';
+    case 422:
+      return apiMessage ? `Invalid parameters: ${apiMessage}` : 'Invalid parameters';
+    case 429:
+      return 'Rate limit exceeded. Please try again later';
+    case 500:
+      return 'Server error. Please try again later';
+    case 503:
+      return 'Service is temporarily unavailable';
+    default:
+      return defaultMessage;
+  }
+}
 
 /**
  * Generates a chat completion prompt for the commit message based on the provided diff.
@@ -82,8 +127,26 @@ export async function generateCommitMsg(arg?: GenerateCommitMsgArg) {
       progress.report({ message: 'Getting staged changes...' });
       const diff = await getDiffStaged(repo);
 
-      if (!diff || diff === 'No changes staged.') {
+      logDebug(
+        'Staged diff resolved',
+        { diffLength: typeof diff === 'string' ? diff.length : null },
+        repo.rootUri
+      );
+
+      const configMaxDiffChars = configManager.getConfig<number>(
+        ConfigKeys.MAX_DIFF_CHARS,
+        200000,
+        repo.rootUri
+      );
+
+      if (!diff || diff === 'No changes staged.' || diff.trim().length < 20) {
         throw new Error('No changes staged for commit');
+      }
+
+      if (Number.isFinite(configMaxDiffChars) && diff.length > configMaxDiffChars) {
+        throw new Error(
+          `Staged diff is too large (${diff.length} chars). Please split the commit into smaller staged changes or increase ai-commit-plus.MAX_DIFF_CHARS.`
+        );
       }
 
       const scmInputBox = repo.inputBox;
@@ -92,6 +155,25 @@ export async function generateCommitMsg(arg?: GenerateCommitMsgArg) {
       }
 
       const additionalContext = scmInputBox.value.trim();
+      logDebug(
+        'Commit generation context',
+        {
+          providerType: resolvedProfile.profile.type,
+          profileName: resolvedProfile.profile.name,
+          model: resolvedProfile.profile.model,
+          baseURL: resolvedProfile.profile.baseURL
+            ? (() => {
+                try {
+                  return new URL(resolvedProfile.profile.baseURL).origin;
+                } catch {
+                  return resolvedProfile.profile.baseURL;
+                }
+              })()
+            : undefined,
+          hasAdditionalContext: Boolean(additionalContext)
+        },
+        repo.rootUri
+      );
 
       progress.report({
         message: additionalContext
@@ -101,6 +183,11 @@ export async function generateCommitMsg(arg?: GenerateCommitMsgArg) {
       const messages = await generateCommitMessageChatCompletionPrompt(
         diff,
         additionalContext,
+        repo.rootUri
+      );
+      logDebug(
+        'Prepared model messages',
+        { messageCount: messages.length, roles: messages.map((m) => (m as any).role) },
         repo.rootUri
       );
 
@@ -120,31 +207,22 @@ export async function generateCommitMsg(arg?: GenerateCommitMsgArg) {
 
 
         if (commitMessage) {
+          logDebug(
+            'Commit message generated',
+            { commitMessageLength: commitMessage.length },
+            repo.rootUri
+          );
           scmInputBox.value = commitMessage;
         } else {
           throw new Error('Failed to generate commit message');
         }
       } catch (err) {
-        let errorMessage = 'An unexpected error occurred';
-
-        const e = err as { response?: { status?: number } } | undefined;
-        if (resolvedProfile.profile.type === 'openai-compatible' && e?.response?.status) {
-          switch (e.response.status) {
-            case 401:
-              errorMessage = 'Invalid OpenAI API key or unauthorized access';
-              break;
-            case 429:
-              errorMessage = 'Rate limit exceeded. Please try again later';
-              break;
-            case 500:
-              errorMessage = 'OpenAI server error. Please try again later';
-              break;
-            case 503:
-              errorMessage = 'OpenAI service is temporarily unavailable';
-              break;
-          }
-        }
-
+        const errorMessage = formatProviderErrorMessage(err, resolvedProfile.profile.type);
+        logDebug(
+          'Provider request failed',
+          { message: errorMessage },
+          repo.rootUri
+        );
         throw new Error(errorMessage);
       }
     } catch (error) {

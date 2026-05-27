@@ -31,6 +31,8 @@ export enum ConfigKeys {
   SYSTEM_PROMPT = 'AI_COMMIT_SYSTEM_PROMPT',
   PROVIDER_PROFILES = 'PROVIDER_PROFILES',
   ACTIVE_PROVIDER_PROFILE_ID = 'ACTIVE_PROVIDER_PROFILE_ID',
+  DEBUG_LOGGING = 'DEBUG_LOGGING',
+  MAX_DIFF_CHARS = 'MAX_DIFF_CHARS',
 }
 
 export function normalizeString(value: unknown): string | undefined {
