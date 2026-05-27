@@ -205,6 +205,8 @@
     "compile": "webpack",
     "compile-tests": "node -e \"require('node:fs').rmSync('out/test', { recursive: true, force: true })\" && tsc -p tsconfig.test.json",
     "lint": "eslint src --ext ts",
+    "install:local": "npm run package && node ./scripts/vsix.js install",
+    "install:local:force": "npm run package && node ./scripts/vsix.js install --force",
     "package": "node ./scripts/vsix.js package",
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "publish": "npm run package && node ./scripts/vsix.js publish",

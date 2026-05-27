@@ -72,6 +72,29 @@ function runVsce(args) {
 }
 
 /**
+ * Runs the VS Code CLI with the provided arguments.
+ *
+ * @param {string[]} args - Arguments passed to the code executable.
+ * @returns {void} Nothing.
+ * @throws {Error} Throws when code exits with a non-zero status or cannot be started.
+ * @sideEffects Spawns the VS Code CLI and forwards stdio to the current terminal.
+ */
+function runCode(args) {
+  const codeCommand = process.platform === 'win32' ? 'code.cmd' : 'code';
+  const result = spawnSync(codeCommand, args, {
+    stdio: 'inherit'
+  });
+
+  if (result.error) {
+    throw result.error;
+  }
+
+  if (result.status !== 0) {
+    throw new Error(`code exited with status ${result.status}.`);
+  }
+}
+
+/**
  * Packages the extension into a versioned VSIX artifact.
  *
  * @returns {void} Nothing.
@@ -95,6 +118,24 @@ function publishVsix() {
 }
 
 /**
+ * Installs the already packaged versioned VSIX artifact into the local VS Code.
+ *
+ * @param {boolean} force - Whether to force overwrite an existing installation.
+ * @returns {void} Nothing.
+ * @throws {Error} Throws when the VSIX artifact is missing or installation fails.
+ * @sideEffects Invokes the VS Code CLI to install the computed VSIX artifact.
+ */
+function installVsix(force) {
+  const vsixPath = getVsixPath();
+
+  if (!fs.existsSync(vsixPath)) {
+    throw new Error(`VSIX not found at ${vsixPath}. Run "npm run package" first.`);
+  }
+
+  runCode(['--install-extension', vsixPath, ...(force ? ['--force'] : [])]);
+}
+
+/**
  * Executes the requested VSIX helper command.
  *
  * @returns {void} Nothing.
@@ -103,6 +144,7 @@ function publishVsix() {
  */
 function main() {
   const command = process.argv[2];
+  const force = process.argv.includes('--force');
 
   switch (command) {
     case 'path':
@@ -114,8 +156,11 @@ function main() {
     case 'publish':
       publishVsix();
       break;
+    case 'install':
+      installVsix(force);
+      break;
     default:
-      throw new Error('Usage: node scripts/vsix.js <path|package|publish>');
+      throw new Error('Usage: node scripts/vsix.js <path|package|publish|install> [--force]');
   }
 }
 
