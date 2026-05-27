@@ -30,6 +30,8 @@ suite('prompts', () => {
       const result = buildCommitTypeReferenceTable(true);
       assert.ok(result.includes('feat'));
       assert.ok(result.includes('✨'));
+      assert.ok(result.includes('Maintain configuration or project metadata.'));
+      assert.ok(!result.includes('Add or update configuration files.'));
     });
 
     test('returns table without emoji column when includeGitmoji is false', async () => {
@@ -45,7 +47,9 @@ suite('prompts', () => {
       const { buildOutputFormat } = await import('../../prompts');
       const result = buildOutputFormat(true);
       assert.ok(result.includes('<emoji>'));
-      assert.ok(result.includes('<type>(<scope>): <subject>'));
+      assert.ok(result.includes('<type>(<scope>): <emoji> <subject>'));
+      assert.ok(result.includes('Keep the full header under 72 characters'));
+      assert.ok(!result.includes('Multiple Type Changes'));
     });
 
     test('returns format without emoji when includeGitmoji is false', async () => {
@@ -53,6 +57,8 @@ suite('prompts', () => {
       const result = buildOutputFormat(false);
       assert.ok(!result.includes('<emoji>'));
       assert.ok(result.includes('<type>(<scope>): <subject>'));
+      assert.ok(result.includes('Keep the subject under 50 characters'));
+      assert.ok(!result.includes('Multiple Type Changes'));
     });
   });
 
@@ -65,6 +71,30 @@ suite('prompts', () => {
       assert.strictEqual(result[0].role, 'system');
       assert.ok(typeof result[0].content === 'string');
       assert.ok(result[0].content.length > 0);
+    });
+
+    test('includes settings action verb guidance', async () => {
+      const { getMainCommitPrompt } = await import('../../prompts');
+      const result = await getMainCommitPrompt();
+      const content = String(result[0].content);
+      assert.ok(
+        content.includes(
+          'Changes to generated output, formatting, validation, prompts, or templates are behavior changes; use fix when they correct invalid, misleading, or incompatible output'
+        )
+      );
+      assert.ok(
+        content.includes(
+          'If the diff changes an existing settings or configuration value, the subject must use "set", "enable", "disable", or "update"'
+        )
+      );
+      assert.ok(
+        content.includes(
+          'Do not use "add" in the subject for settings value changes'
+        )
+      );
+      assert.ok(content.includes('Good: chore(settings): 🔧 set gitmoji prompt preset'));
+      assert.ok(content.includes('Bad: chore(settings): 🔧 add gitmoji prompt preset setting'));
+      assert.ok(content.includes('chore(settings):'));
     });
   });
 });

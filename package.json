@@ -2,7 +2,7 @@
   "name": "ai-commit-plus",
   "displayName": "AI Commit Plus",
   "description": "Use OpenAI and Gemini APIs to review Git changes, generate conventional commit messages, and keep commit conventions consistent with the AI Commit Plus workflow.",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "engines": {
     "node": ">=24",
     "vscode": "^1.77.0"

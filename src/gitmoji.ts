@@ -114,12 +114,14 @@ export function buildCommitTypeReferenceTable(includeGitmoji: boolean): string {
   return [
     '| Type | Emoji | Gitmoji Code | Description | Official Gitmoji Purpose | Example Scopes |',
     '| ---- | ----- | ------------ | ----------- | ------------------------ | -------------- |',
-    ...COMMIT_TYPE_REFERENCES.map(
-      ({ type, gitmojiCode, description, exampleScopes }) => {
-        const gitmoji = getGitmojiByCode(gitmojiCode);
-        return `| ${type} | ${gitmoji.emoji} | ${gitmoji.code} | ${description} | ${gitmoji.description} | ${exampleScopes} |`;
-      }
-    )
+	    ...COMMIT_TYPE_REFERENCES.map(
+	      ({ type, gitmojiCode, description, exampleScopes }) => {
+	        const gitmoji = getGitmojiByCode(gitmojiCode);
+	        const gitmojiPurpose =
+	          type === 'chore' ? 'Maintain configuration or project metadata.' : gitmoji.description;
+	        return `| ${type} | ${gitmoji.emoji} | ${gitmoji.code} | ${description} | ${gitmojiPurpose} | ${exampleScopes} |`;
+	      }
+	    )
   ].join('\n');
 }
 

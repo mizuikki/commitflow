@@ -21,49 +21,51 @@ async function getCommitPromptTemplate(): Promise<string> {
 
 export function buildOutputFormat(includeGitmoji: boolean): string {
   if (includeGitmoji) {
-    return `### Single Type Changes
+    return `### Output Format
 
 \`\`\`
-<emoji> <type>(<scope>): <subject>
-  <body>
+<type>(<scope>): <emoji> <subject>
+
+- <body bullet>
+- <body bullet>
 \`\`\`
 
-### Multiple Type Changes
+### Rules
 
-\`\`\`
-<emoji> <type>(<scope>): <subject>
-  <body of type 1>
-
-<emoji> <type>(<scope>): <subject>
-  <body of type 2>
-...
-\`\`\``;
+- Output exactly ONE header line in Conventional Commits form
+- Keep the full header under 72 characters
+- Keep the subject under 50 characters
+- If changes span multiple categories, pick the most impactful <type> for the header
+- Describe all other changes as "-" bullets in the body
+- Do NOT add additional "<type>(<scope>): <subject>" lines anywhere in the message`;
   }
 
-  return `### Single Type Changes
+  return `### Output Format
 
 \`\`\`
 <type>(<scope>): <subject>
-  <body>
+
+- <body bullet>
+- <body bullet>
 \`\`\`
 
-### Multiple Type Changes
+### Rules
 
-\`\`\`
-<type>(<scope>): <subject>
-  <body of type 1>
-
-<type>(<scope>): <subject>
-  <body of type 2>
-...
-\`\`\``;
+- Output exactly ONE header line in Conventional Commits form
+- Keep the full header under 72 characters
+- Keep the subject under 50 characters
+- If changes span multiple categories, pick the most impactful <type> for the header
+- Describe all other changes as "-" bullets in the body
+- Do NOT add additional "<type>(<scope>): <subject>" lines anywhere in the message`;
 }
 
 export function buildGitmojiRules(includeGitmoji: boolean): string {
   return includeGitmoji
     ? `### Gitmoji
 
-- Prefix every subject line with the emoji that matches the selected type
+- Use exactly one emoji from the Type Reference table
+- Place the emoji inside the subject (after ":") instead of prefixing the type
+- Example: feat(auth): ✨ add oauth2 login
 - Choose emojis only from the Type Reference table
 - Do not output Gitmoji shortcodes such as ":bug:"`
     : '';
@@ -71,14 +73,21 @@ export function buildGitmojiRules(includeGitmoji: boolean): string {
 
 export function buildExample(language: string, includeGitmoji: boolean): string {
   const exampleHeader = includeGitmoji
-    ? `${getGitmojiForCommitType('refactor')} refactor(server): <subject in ${language}>`
+    ? `refactor(server): ${getGitmojiForCommitType('refactor')} <subject in ${language}>`
     : `refactor(server): <subject in ${language}>`;
+  const settingsExampleHeader = includeGitmoji
+    ? `chore(settings): ${getGitmojiForCommitType('chore')} set setting value`
+    : 'chore(settings): set setting value';
 
   return `\`\`\`
 ${exampleHeader}
 
 - <body bullet in ${language}>
 - <body bullet in ${language}>
+
+${settingsExampleHeader}
+
+- Set \`tool.option\` to \`enabled\`
 \`\`\``;
 }
 
