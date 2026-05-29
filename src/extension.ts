@@ -26,6 +26,52 @@ function getPromptPresetLabel(promptPreset: PromptPreset): string {
   }
 }
 
+const COMPACT_COMMIT_LANGUAGE_CODES: Record<string, string> = {
+  'Simplified Chinese': 'ZH-CN',
+  'Traditional Chinese': 'ZH-TW',
+  Japanese: 'JA',
+  Korean: 'KO',
+  Czech: 'CS',
+  German: 'DE',
+  French: 'FR',
+  Italian: 'IT',
+  Dutch: 'NL',
+  Portuguese: 'PT',
+  Vietnamese: 'VI',
+  English: 'EN',
+  Spanish: 'ES',
+  Swedish: 'SV',
+  Russian: 'RU',
+  Bahasa: 'ID',
+  Polish: 'PL',
+  Turkish: 'TR',
+  Thai: 'TH'
+};
+
+function getFallbackCommitLanguageCode(language: string): string {
+  const parts = language.split(/[^A-Za-z0-9]+/).filter(Boolean);
+  const initialism = parts.map((part) => part[0]?.toUpperCase()).filter(Boolean).join('');
+  const compact = initialism || language.trim().slice(0, 6).toUpperCase() || '??';
+  return compact.length > 6 ? compact.slice(0, 6) : compact;
+}
+
+function getCompactCommitLanguageCode(language: string): string {
+  return COMPACT_COMMIT_LANGUAGE_CODES[language] ?? getFallbackCommitLanguageCode(language);
+}
+
+function getCompactPromptPresetCode(promptPreset: PromptPreset): string {
+  switch (promptPreset) {
+    case 'without-gitmoji':
+      return 'NoG';
+    case 'gitmoji-prefix':
+      return 'G+';
+    case 'gitmoji-suffix':
+      return 'G-';
+    case 'custom':
+      return 'Custom';
+  }
+}
+
 function getActiveResourceUri(): vscode.Uri | undefined {
   const activeEditorUri = vscode.window.activeTextEditor?.document.uri;
   if (activeEditorUri) {
@@ -103,7 +149,9 @@ async function getStatusBarState(configManager: ConfigurationManager): Promise<S
   };
 }
 
-function getProviderStatusLabel(state: StatusBarState): string {
+export function formatStatusBarLabel(
+  state: Pick<StatusBarState, 'profiles' | 'activeProfile' | 'language' | 'promptPreset'>
+): string {
   if (!state.profiles.length) {
     return 'CommitFlow: Setup';
   }
@@ -112,7 +160,9 @@ function getProviderStatusLabel(state: StatusBarState): string {
     return 'CommitFlow: No Provider';
   }
 
-  return getShortProviderLabel(state.activeProfile.name);
+  const languageCode = getCompactCommitLanguageCode(state.language);
+  const promptCode = getCompactPromptPresetCode(state.promptPreset);
+  return `${languageCode}·${promptCode}`;
 }
 
 function getProviderStatusDetail(state: StatusBarState): string {
@@ -256,7 +306,7 @@ function createCombinedStatusBarItem(
 
   const refresh = async () => {
     const state = await getStatusBarState(configManager);
-    item.text = `$(${getStatusBarIconName(state)}) ${getProviderStatusLabel(state)}`;
+    item.text = `$(${getStatusBarIconName(state)}) ${formatStatusBarLabel(state)}`;
     item.tooltip = buildStatusBarTooltip(state);
     item.command = 'commitflow.openStatusBarMenu';
     item.show();
