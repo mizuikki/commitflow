@@ -2,6 +2,7 @@ import { GoogleGenAI } from '@google/genai';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 import * as vscode from 'vscode';
 import { ResolvedProviderProfile } from './config';
+import { ProviderRequestOptions } from './provider-request-options';
 
 function extractMessageContent(message: ChatCompletionMessageParam | { content?: unknown }): string {
   const content = message.content;
@@ -41,12 +42,13 @@ export function createGeminiAPIClient(resolvedProfile: ResolvedProviderProfile) 
 export async function GeminiAPI(
   messages: ChatCompletionMessageParam[],
   resolvedProfile: ResolvedProviderProfile,
-  resourceUri?: vscode.Uri
+  resourceUri?: vscode.Uri,
+  options: ProviderRequestOptions = {}
 ) {
   try {
     const ai = createGeminiAPIClient(resolvedProfile);
     const { profile } = resolvedProfile;
-    const temperature = profile.inference?.temperature ?? 0.7;
+    const temperature = options.temperature ?? profile.inference?.temperature ?? 0.7;
 
     const systemInstruction = messages
       .filter((message) => message.role === 'system')
@@ -62,7 +64,10 @@ export async function GeminiAPI(
       contents: userContent,
       config: {
         systemInstruction: systemInstruction || undefined,
-        temperature
+        temperature,
+        ...(options.maxOutputTokens !== undefined
+          ? { maxOutputTokens: options.maxOutputTokens }
+          : {})
       }
     });
 

@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 import * as vscode from 'vscode';
 import { ResolvedProviderProfile } from './config';
+import { ProviderRequestOptions } from './provider-request-options';
 
 function extractMessageContent(message: ChatCompletionMessageParam | { content?: unknown }): string {
   const content = message.content;
@@ -41,7 +42,8 @@ export function createAnthropicClient(resolvedProfile: ResolvedProviderProfile) 
 export async function AnthropicAPI(
   messages: ChatCompletionMessageParam[],
   resolvedProfile: ResolvedProviderProfile,
-  _resourceUri?: vscode.Uri
+  _resourceUri?: vscode.Uri,
+  options: ProviderRequestOptions = {}
 ) {
   const anthropic = createAnthropicClient(resolvedProfile);
   const { profile } = resolvedProfile;
@@ -56,8 +58,8 @@ export async function AnthropicAPI(
 
   const response = await anthropic.messages.create({
     model: profile.model,
-    max_tokens: 256,
-    temperature: profile.inference?.temperature ?? 0.7,
+    max_tokens: options.maxOutputTokens ?? 256,
+    temperature: options.temperature ?? profile.inference?.temperature ?? 0.7,
     system: system || undefined,
     messages: [
       {

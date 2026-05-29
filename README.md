@@ -53,10 +53,11 @@ CommitFlow is distributed as a VSIX package through GitHub Releases. It is not p
 1. Install and enable CommitFlow.
 2. Run `Manage Provider Profiles`.
 3. Create a provider profile with a preset or custom model and API key from the provider catalog panel.
-4. Stage the files you want to commit.
-5. Optionally type extra context in the Source Control message box.
-6. Click `CommitFlow` in the Source Control title bar.
-7. Review and edit the generated commit message before committing.
+4. Use `Test Connection` to verify endpoint/auth setup, or `Test Model Response` to confirm the selected model can return a real reply.
+5. Stage the files you want to commit.
+6. Optionally type extra context in the Source Control message box.
+7. Click `CommitFlow` in the Source Control title bar.
+8. Review and edit the generated commit message before committing.
 
 ## Status Bar Control Center
 
@@ -81,14 +82,14 @@ CommitFlow supports concrete provider presets backed by a few runtime drivers:
 | `Ollama`, `LM Studio` | Local OpenAI-compatible endpoints |
 | `Custom OpenAI-compatible` | Any compatible endpoint with a custom base URL |
 
-Provider profiles store provider identity, runtime driver, auth scheme, connection settings, and inference settings separately. The model field offers built-in presets maintained from provider documentation plus a `Custom model ID` option for unreleased, local, deployment-specific, or OpenAI-compatible models. Local providers such as Ollama and LM Studio usually use custom model IDs or models fetched with `Load Models`. Azure API version is no longer mixed into generic provider config. API keys are stored separately in VS Code SecretStorage.
+Provider profiles store provider identity, runtime driver, auth scheme, connection settings, and inference settings separately. The model field offers built-in presets maintained from provider documentation plus a `Custom model ID` option for unreleased, local, deployment-specific, or OpenAI-compatible models. Local providers such as Ollama and LM Studio usually use custom model IDs or models fetched with `Load Models`. Azure API version is no longer mixed into generic provider config. API keys are stored separately in VS Code SecretStorage. `Test Connection` checks basic connectivity, while `Test Model Response` sends a minimal prompt and verifies that the chosen model can actually answer.
 
 ## Commands
 
 | Command | Description |
 | :--- | :--- |
 | `CommitFlow` | Generate a commit message from staged changes |
-| `Manage Provider Profiles` | Open the provider management panel to create, edit, copy, delete, test, activate, or set repository-specific profiles |
+| `Manage Provider Profiles` | Open the provider management panel to create, edit, copy, delete, test connectivity, test real model responses, activate, or set repository-specific profiles |
 | `Switch Provider Profile` | Quickly switch the active profile |
 | `Show Available Provider Models` | Open the provider panel and load models for the active profile when supported |
 | `Set Commit Language for Current Repository` | Override commit message language for the current repository |

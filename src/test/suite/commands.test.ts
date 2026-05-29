@@ -36,11 +36,17 @@ suite('commands', () => {
   suite('normalizeMessagesForOpenAICompatibleAPI', () => {
     let normalizeMessagesForOpenAICompatibleAPI: (messages: any[]) => any[];
     let prepareMessagesForOpenAICompatibleAPI: (messages: any[]) => any[];
+    let extractOpenAICompatibleResponseParts: (completion: any) => {
+      finalText?: string;
+      refusalText?: string;
+      reasoningText?: string;
+    };
 
     setup(async () => {
       const mod = await import('../../openai-utils');
       normalizeMessagesForOpenAICompatibleAPI = (mod as any).normalizeMessagesForOpenAICompatibleAPI;
       prepareMessagesForOpenAICompatibleAPI = (mod as any).prepareMessagesForOpenAICompatibleAPI;
+      extractOpenAICompatibleResponseParts = (mod as any).extractOpenAICompatibleResponseParts;
     });
 
     test('keeps string content unchanged', () => {
@@ -73,6 +79,27 @@ suite('commands', () => {
       ]);
       assert.strictEqual(out[0].role, 'user');
       assert.strictEqual(out[0].content, 'hello');
+    });
+
+    test('extractOpenAICompatibleResponseParts handles final string content', () => {
+      const out = extractOpenAICompatibleResponseParts({
+        choices: [{ message: { content: 'pong' } }]
+      });
+      assert.deepStrictEqual(out, { finalText: 'pong', refusalText: undefined, reasoningText: undefined });
+    });
+
+    test('extractOpenAICompatibleResponseParts handles array content parts', () => {
+      const out = extractOpenAICompatibleResponseParts({
+        choices: [{ message: { content: [{ text: 'pong' }] } }]
+      });
+      assert.deepStrictEqual(out, { finalText: 'pong', refusalText: undefined, reasoningText: undefined });
+    });
+
+    test('extractOpenAICompatibleResponseParts keeps reasoning separate from final content', () => {
+      const out = extractOpenAICompatibleResponseParts({
+        choices: [{ message: { content: null, reasoning_content: 'pong', refusal: 'no' } }]
+      });
+      assert.deepStrictEqual(out, { finalText: undefined, refusalText: 'no', reasoningText: 'pong' });
     });
   });
 

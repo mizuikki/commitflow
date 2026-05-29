@@ -10,7 +10,6 @@ import {
 import {
   PROVIDER_CATALOG,
   createDefaultProfileDraft,
-  getProviderCatalogEntry,
   getProviderLabel,
   supportsModelListing,
   validateProviderProfile
@@ -20,6 +19,7 @@ import {
   getRecommendedProviderModel
 } from './provider-model-presets';
 import { createGeminiAPIClient } from './gemini-utils';
+import { ProviderModelTestResult, testProviderModelResponse } from './provider-model-test';
 import { ProviderProfile, ProviderProfileInput, ResolvedProviderProfile } from './provider-types';
 
 type PanelOptions = {
@@ -43,6 +43,12 @@ type ProviderDraftPayload = {
   inference?: {
     temperature?: number | string;
   };
+};
+
+type ModelTestStatePayload = {
+  draftKey?: string;
+  pending: boolean;
+  result?: ProviderModelTestResult;
 };
 
 function getCurrentResourceUri(): vscode.Uri | undefined {
@@ -143,6 +149,32 @@ function escapeHtml(value: string): string {
     .replace(/'/g, '&#39;');
 }
 
+function buildModelTestFailureResult(
+  payload: ProviderDraftPayload,
+  errorMessage: string
+): ProviderModelTestResult {
+  const providerId = normalizeString(payload.providerId) as ProviderProfile['providerId'] | undefined;
+  let providerLabel = 'Unknown provider';
+
+  if (providerId) {
+    try {
+      providerLabel = getProviderLabel(providerId);
+    } catch {
+      providerLabel = 'Unknown provider';
+    }
+  }
+
+  return {
+    status: 'error',
+    providerLabel,
+    profileName: normalizeString(payload.name) ?? 'Draft profile',
+    model: normalizeString(payload.model) ?? '',
+    latencyMs: 0,
+    testedAt: new Date().toISOString(),
+    detailMessage: errorMessage
+  };
+}
+
 export class ProviderManagementPanel {
   private static currentPanel: ProviderManagementPanel | undefined;
 
@@ -241,6 +273,9 @@ export class ProviderManagementPanel {
         return;
       case 'test-connection':
         await this.testConnection(message.payload);
+        return;
+      case 'test-model-response':
+        await this.testModelResponse(message.payload, normalizeString(message.draftKey));
         return;
     }
   }
@@ -498,6 +533,55 @@ export class ProviderManagementPanel {
     }
 
     vscode.window.showInformationMessage(`Connection to "${profile.name}" succeeded.`);
+  }
+
+  private postModelTestState(payload: ModelTestStatePayload) {
+    this.panel.webview.postMessage({
+      type: 'model-test-state',
+      payload
+    });
+  }
+
+  private async testModelResponse(payload: ProviderDraftPayload, draftKey?: string) {
+    this.postModelTestState({ draftKey, pending: true });
+
+    try {
+      const profileInput = hydrateProfileInput(payload);
+      const profile: ProviderProfile = {
+        ...profileInput,
+        id: profileInput.id ?? 'draft'
+      };
+      const errors = validateProviderProfile(profile);
+      if (errors.length) {
+        throw new Error(errors[0]);
+      }
+
+      const existingProfile = profileInput.id
+        ? this.configManager.getProviderProfiles().find((item) => item.id === profileInput.id)
+        : undefined;
+      const apiKey = profile.auth.scheme === 'none'
+        ? undefined
+        : await resolveDraftApiKey(this.configManager, payload, existingProfile);
+
+      if (profile.auth.scheme !== 'none' && !apiKey) {
+        throw new Error('API key is required for this provider.');
+      }
+
+      const resolvedProfile: ResolvedProviderProfile = { profile, apiKey };
+      const result = await testProviderModelResponse(resolvedProfile, this.resourceUri);
+      this.postModelTestState({
+        draftKey,
+        pending: false,
+        result
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.postModelTestState({
+        draftKey,
+        pending: false,
+        result: buildModelTestFailureResult(payload, errorMessage)
+      });
+    }
   }
 
   private getHtml() {
@@ -781,6 +865,72 @@ export class ProviderManagementPanel {
       cursor: pointer;
       background: #fff;
     }
+    .model-test-result {
+      display: none;
+      margin-top: 12px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(255,250,245,0.95) 100%);
+      font-size: 12px;
+      line-height: 1.55;
+      color: var(--ink);
+    }
+    .model-test-result.pending {
+      display: block;
+      border-color: #d89a4a;
+      background: #fff6e8;
+    }
+    .model-test-result.success {
+      display: block;
+      border-color: #8fc7ae;
+      background: #f4fbf7;
+    }
+    .model-test-result.warning {
+      display: block;
+      border-color: #d8b15e;
+      background: #fff8e7;
+    }
+    .model-test-result.error {
+      display: block;
+      border-color: #d5a1a1;
+      background: #fff5f4;
+    }
+    .model-test-result-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .model-test-result-title {
+      font-weight: 700;
+    }
+    .model-test-result.pending .model-test-result-title {
+      color: #9b5b10;
+    }
+    .model-test-result.success .model-test-result-title {
+      color: var(--good);
+    }
+    .model-test-result.warning .model-test-result-title {
+      color: #9b6b12;
+    }
+    .model-test-result.error .model-test-result-title {
+      color: #9b3d20;
+    }
+    .model-test-result-meta {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+    .model-test-result-body {
+      margin-top: 8px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .model-test-result-body code {
+      font-family: var(--mono);
+      font-size: 11px;
+    }
     .empty {
       padding: 40px 20px;
       text-align: center;
@@ -886,7 +1036,10 @@ export class ProviderManagementPanel {
       activeProfileId: undefined,
       workspaceProfileId: undefined,
       resourceLabel: undefined,
-      availableModels: []
+      availableModels: [],
+      modelTestPending: false,
+      modelTestResult: undefined,
+      modelTestDraftKey: undefined
     };
 
     const els = {
@@ -905,6 +1058,54 @@ export class ProviderManagementPanel {
     let draft = null;
     let draftMode = 'selected';
     let previewFrame = 0;
+
+    function buildDraftKey(nextDraft) {
+      if (!nextDraft) {
+        return '';
+      }
+
+      return JSON.stringify({
+        id: nextDraft.id || '',
+        name: nextDraft.name || '',
+        providerId: nextDraft.providerId || '',
+        model: nextDraft.model || '',
+        connection: {
+          baseURL: nextDraft.connection && nextDraft.connection.baseURL || '',
+          endpoint: nextDraft.connection && nextDraft.connection.endpoint || '',
+          deployment: nextDraft.connection && nextDraft.connection.deployment || '',
+          apiVersion: nextDraft.connection && nextDraft.connection.apiVersion || ''
+        }
+      });
+    }
+
+    function getCurrentDraftKey() {
+      return buildDraftKey(collectDraftFromForm() || draft);
+    }
+
+    function clearModelTestState() {
+      state.modelTestPending = false;
+      state.modelTestResult = undefined;
+      state.modelTestDraftKey = undefined;
+      updateModelTestUi();
+    }
+
+    function beginModelTest(draftKey) {
+      state.modelTestPending = true;
+      state.modelTestResult = undefined;
+      state.modelTestDraftKey = draftKey;
+      updateModelTestUi();
+    }
+
+    function applyModelTestState(payload) {
+      if (payload.draftKey && payload.draftKey !== getCurrentDraftKey()) {
+        return;
+      }
+
+      state.modelTestPending = Boolean(payload.pending);
+      state.modelTestResult = payload.result;
+      state.modelTestDraftKey = payload.pending ? payload.draftKey : undefined;
+      updateModelTestUi();
+    }
 
     function getCatalogEntry(providerId) {
       return state.catalog.find((entry) => entry.id === providerId);
@@ -1015,6 +1216,7 @@ export class ProviderManagementPanel {
           state.selectedProfileId = profile.id;
           draft = draftFromProfile(profile);
           draftMode = 'selected';
+          clearModelTestState();
           render();
         });
         els.profileList.appendChild(button);
@@ -1052,6 +1254,7 @@ export class ProviderManagementPanel {
           draft = nextDraft;
           draftMode = 'catalog';
           state.selectedProfileId = undefined;
+          clearModelTestState();
           render();
           els.catalogDialog.close();
         });
@@ -1390,15 +1593,17 @@ export class ProviderManagementPanel {
         '</section>',
         '<section class="section">',
           '<h3>Actions</h3>',
-          '<p>Save the profile, validate the connection, and manage activation or workspace override from one place.</p>',
+          '<p>Save the profile, validate connectivity, request a real model reply, and manage activation or workspace override from one place.</p>',
           '<div class="action-row">',
             '<button type="button" class="primary" id="saveButton">Save Profile</button>',
             '<button type="button" class="ghost" id="testButton">Test Connection</button>',
+            '<button type="button" class="ghost" id="testModelButton"' + (state.modelTestPending ? ' disabled' : '') + '>' + (state.modelTestPending ? 'Testing Model...' : 'Test Model Response') + '</button>',
             '<button type="button" class="ghost" id="loadModelsButton"' + (loadModelsDisabled ? ' disabled' : '') + '>Load Models</button>',
             '<button type="button" class="ghost" id="setActiveButton"' + (!selected ? ' disabled' : '') + '>Set Active</button>',
             '<button type="button" class="ghost" id="setWorkspaceButton"' + (!selected ? ' disabled' : '') + '>Set for Workspace</button>',
             '<button type="button" class="ghost" id="clearWorkspaceButton"' + (clearWorkspaceDisabled ? ' disabled' : '') + '>Clear Workspace Override</button>',
           '</div>',
+          '<div class="model-test-result" id="modelTestResult"></div>',
           '<div class="model-list" id="modelList"></div>',
         '</section>'
       ].join('');
@@ -1428,6 +1633,7 @@ export class ProviderManagementPanel {
           }
         };
         draftMode = draft.id ? 'selected' : 'catalog';
+        clearModelTestState();
         render();
       });
 
@@ -1436,6 +1642,12 @@ export class ProviderManagementPanel {
       });
       document.getElementById('testButton').addEventListener('click', () => {
         vscode.postMessage({ type: 'test-connection', payload: collectDraft() });
+      });
+      document.getElementById('testModelButton').addEventListener('click', () => {
+        const payload = collectDraft();
+        const draftKey = buildDraftKey(payload);
+        beginModelTest(draftKey);
+        vscode.postMessage({ type: 'test-model-response', payload, draftKey });
       });
       document.getElementById('loadModelsButton').addEventListener('click', () => {
         if (selected) {
@@ -1463,6 +1675,7 @@ export class ProviderManagementPanel {
         }
 
         const useCustom = event.target.value === '__custom__';
+        clearModelTestState();
         customField.style.display = useCustom ? '' : 'none';
         if (useCustom && !customInput.value && draft.model && !currentModelPresets.includes(draft.model)) {
           customInput.value = draft.model;
@@ -1470,22 +1683,32 @@ export class ProviderManagementPanel {
       });
 
       [
+        'profileName',
         'providerId',
         'modelPreset',
         'customModel',
+        'apiKey',
         'baseURL',
         'endpoint',
         'deployment',
-        'apiVersion'
+        'apiVersion',
+        'temperature'
       ].forEach((id) => {
         const input = document.getElementById(id);
         if (input) {
-          input.addEventListener('input', schedulePreviewUpdate);
-          input.addEventListener('change', schedulePreviewUpdate);
+          input.addEventListener('input', () => {
+            clearModelTestState();
+            schedulePreviewUpdate();
+          });
+          input.addEventListener('change', () => {
+            clearModelTestState();
+            schedulePreviewUpdate();
+          });
         }
       });
 
       renderModelList();
+      updateModelTestUi();
       renderRequestPreview();
     }
 
@@ -1516,12 +1739,83 @@ export class ProviderManagementPanel {
             return;
           }
 
+          clearModelTestState();
           const hasPreset = Array.from(presetInput.options).some((option) => option.value === nextModel);
           presetInput.value = hasPreset ? nextModel : '__custom__';
           customField.style.display = hasPreset ? 'none' : '';
           customInput.value = hasPreset ? '' : nextModel;
         });
       });
+    }
+
+    function renderModelTestResult() {
+      const resultCard = document.getElementById('modelTestResult');
+      if (!resultCard) {
+        return;
+      }
+
+      if (state.modelTestPending) {
+        resultCard.className = 'model-test-result pending';
+        resultCard.innerHTML =
+          '<div class="model-test-result-header">' +
+            '<div>' +
+              '<div class="model-test-result-title">Testing model response...</div>' +
+              '<div class="model-test-result-meta">Sending a minimal prompt and waiting for a real reply.</div>' +
+            '</div>' +
+          '</div>';
+        return;
+      }
+
+      if (!state.modelTestResult) {
+        resultCard.className = 'model-test-result';
+        resultCard.innerHTML = '';
+        return;
+      }
+
+      const status = state.modelTestResult.status || 'success';
+      const testedAt = state.modelTestResult.testedAt
+        ? new Date(state.modelTestResult.testedAt).toLocaleString()
+        : 'Unknown time';
+      const snippet = state.modelTestResult.responseText
+        ? '<div class="model-test-result-body"><code>' + escapeHtml(state.modelTestResult.responseText) + '</code></div>'
+        : '';
+      const detail = state.modelTestResult.detailMessage
+        ? '<div class="model-test-result-body">' + escapeHtml(state.modelTestResult.detailMessage) + '</div>'
+        : snippet;
+      const title = status === 'success'
+        ? 'Model responded successfully'
+        : status === 'warning'
+          ? 'Model responded with instruction drift'
+          : 'Model response test failed';
+
+      resultCard.className = 'model-test-result ' + status;
+      resultCard.innerHTML =
+        '<div class="model-test-result-header">' +
+          '<div>' +
+            '<div class="model-test-result-title">' + title + '</div>' +
+            '<div class="model-test-result-meta">' +
+              escapeHtml(state.modelTestResult.providerLabel) + ' · ' +
+              escapeHtml(state.modelTestResult.profileName) + ' · ' +
+              escapeHtml(state.modelTestResult.model || 'No model') + ' · ' +
+              escapeHtml(String(state.modelTestResult.latencyMs || 0)) + 'ms · ' +
+              escapeHtml(testedAt) +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        detail +
+        (state.modelTestResult.detailMessage && state.modelTestResult.responseText ? snippet : '');
+    }
+
+    function updateModelTestUi() {
+      const testModelButton = document.getElementById('testModelButton');
+      if (testModelButton) {
+        testModelButton.disabled = state.modelTestPending;
+        testModelButton.textContent = state.modelTestPending
+          ? 'Testing Model...'
+          : 'Test Model Response';
+      }
+
+      renderModelTestResult();
     }
 
     function collectDraft() {
@@ -1544,8 +1838,23 @@ export class ProviderManagementPanel {
 
     window.addEventListener('message', (event) => {
       const message = event.data;
+      if (message.type === 'model-test-state') {
+        applyModelTestState(message.payload || {});
+        return;
+      }
+
       if (message.type !== 'state') {
         return;
+      }
+
+      if (
+        message.payload &&
+        Object.prototype.hasOwnProperty.call(message.payload, 'selectedProfileId') &&
+        message.payload.selectedProfileId !== state.selectedProfileId
+      ) {
+        state.modelTestPending = false;
+        state.modelTestResult = undefined;
+        state.modelTestDraftKey = undefined;
       }
 
       Object.assign(state, message.payload);

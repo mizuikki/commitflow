@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 import { ResolvedProviderProfile } from './config';
 import { createOpenAIClient } from './api-utils';
 import { logDebug } from './logger';
+import { ProviderRequestOptions } from './provider-request-options';
 
 function coerceChatMessageContentToString(content: unknown): string {
   if (typeof content === 'string') {
@@ -40,6 +41,27 @@ function coerceChatMessageContentToString(content: unknown): string {
 type OpenAICompatibleMessage = ChatCompletionMessageParam & {
   content: string;
   name?: string;
+};
+
+type OpenAICompatibleResponse = {
+  choices?: Array<{
+    message?: {
+      content?: unknown;
+      refusal?: unknown;
+      reasoning_content?: unknown;
+      reasoningContent?: unknown;
+    };
+  }>;
+};
+
+type OpenAICompatibleResponseMessage = NonNullable<
+  NonNullable<OpenAICompatibleResponse['choices']>[number]['message']
+>;
+
+export type OpenAICompatibleResponseParts = {
+  finalText?: string;
+  refusalText?: string;
+  reasoningText?: string;
 };
 
 function sanitizeOpenAICompatibleMessage(
@@ -102,6 +124,23 @@ export function normalizeMessagesForOpenAICompatibleAPI(
   });
 }
 
+export function extractOpenAICompatibleResponseParts(
+  completion: OpenAICompatibleResponse | null | undefined
+): OpenAICompatibleResponseParts {
+  const message = completion?.choices?.[0]?.message as OpenAICompatibleResponseMessage | undefined;
+  const finalText = coerceChatMessageContentToString(message?.content).trim();
+  const refusalText = coerceChatMessageContentToString(message?.refusal).trim();
+  const reasoningText = coerceChatMessageContentToString(
+    message?.reasoning_content ?? message?.reasoningContent
+  ).trim();
+
+  return {
+    finalText: finalText || undefined,
+    refusalText: refusalText || undefined,
+    reasoningText: reasoningText || undefined
+  };
+}
+
 function sanitizeMessagesForLogging(messages: ChatCompletionMessageParam[]) {
   return messages.map((message) => ({
     role: (message as any)?.role,
@@ -126,14 +165,15 @@ export function createOpenAIApi(resolvedProfile: ResolvedProviderProfile): OpenA
   return createOpenAIClient(resolvedProfile.profile, resolvedProfile.apiKey);
 }
 
-export async function OpenAIChatAPI(
+export async function requestOpenAIChatCompletion(
   messages: ChatCompletionMessageParam[],
   resolvedProfile: ResolvedProviderProfile,
-  resourceUri?: vscode.Uri
+  resourceUri?: vscode.Uri,
+  options: ProviderRequestOptions = {}
 ) {
   const openai = createOpenAIApi(resolvedProfile);
   const { profile } = resolvedProfile;
-  const temperature = profile.inference?.temperature ?? 0.7;
+  const temperature = options.temperature ?? profile.inference?.temperature ?? 0.7;
 
   const normalizedMessages = prepareMessagesForOpenAICompatibleAPI(messages);
   logDebug(
@@ -147,11 +187,28 @@ export async function OpenAIChatAPI(
     resourceUri
   );
 
-  const completion = await openai.chat.completions.create({
+  return openai.chat.completions.create({
     model: profile.model,
     messages: normalizedMessages,
-    temperature
+    temperature,
+    ...(options.maxOutputTokens !== undefined
+      ? { max_tokens: options.maxOutputTokens }
+      : {})
   });
+}
 
-  return completion.choices[0]!.message?.content;
+export async function OpenAIChatAPI(
+  messages: ChatCompletionMessageParam[],
+  resolvedProfile: ResolvedProviderProfile,
+  resourceUri?: vscode.Uri,
+  options: ProviderRequestOptions = {}
+) {
+  const completion = await requestOpenAIChatCompletion(
+    messages,
+    resolvedProfile,
+    resourceUri,
+    options
+  );
+
+  return extractOpenAICompatibleResponseParts(completion).finalText;
 }
