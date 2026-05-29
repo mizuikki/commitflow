@@ -348,6 +348,15 @@ export class ProviderManagementPanel {
       return;
     }
 
+    const confirmation = await vscode.window.showWarningMessage(
+      `Delete provider profile "${profile.name}"?`,
+      { modal: true },
+      'Delete'
+    );
+    if (confirmation !== 'Delete') {
+      return;
+    }
+
     await this.configManager.deleteProviderProfile(profileId);
     await vscode.commands.executeCommand('commitflow.refreshStatusBar');
     this.availableModels = [];
@@ -1511,7 +1520,7 @@ export class ProviderManagementPanel {
     });
     els.deleteProfileButton.addEventListener('click', () => {
       const selected = getSelectedProfile();
-      if (selected && confirm('Delete provider profile "' + selected.name + '"?')) {
+      if (selected) {
         vscode.postMessage({ type: 'delete-profile', profileId: selected.id });
       }
     });

@@ -18,7 +18,7 @@ Turn staged Git diffs into clear Conventional Commit messages from inside VS Cod
 
 ## Why CommitFlow
 
-CommitFlow helps you move from staged changes to a reviewable commit message without leaving the Source Control view. It reads the staged diff, combines it with optional context from the SCM input box, and writes back a Conventional Commit message that you can edit before committing.
+CommitFlow helps you move from staged changes to a reviewable commit message without leaving the Source Control view. It reads the staged diff, combines it with optional context from the SCM input box, and writes back a Conventional Commit message that you can edit before committing. The left status bar entry acts as a control center for provider setup, switching, model loading, language, and prompt settings.
 
 Workflow:
 
@@ -32,6 +32,7 @@ Stage changes -> optionally type a hint in the SCM input -> click CommitFlow -> 
 - Use OpenAI, Azure OpenAI, Anthropic, Gemini, and compatible providers such as DeepSeek, OpenRouter, Groq, Ollama, and LM Studio.
 - Store API keys in VS Code SecretStorage.
 - Manage multiple provider profiles and switch between them quickly.
+- Use the left status bar control center to manage provider setup, switching, model loading, and related commit settings.
 - Override language, prompt preset, and active provider per repository.
 - Choose plain Conventional Commits or Gitmoji prefix/suffix output.
 - Limit oversized staged diffs before they are sent to the provider.
@@ -55,6 +56,15 @@ CommitFlow is distributed as a VSIX package through GitHub Releases. It is not p
 5. Optionally type extra context in the Source Control message box.
 6. Click `CommitFlow` in the Source Control title bar.
 7. Review and edit the generated commit message before committing.
+
+## Status Bar Control Center
+
+The left status bar item is the fastest entry point for day-to-day work. Click it to open a task-oriented control center with:
+
+- Provider setup and profile management
+- Provider switching and model loading
+- Commit language and prompt preset changes
+- CommitFlow settings and message generation
 
 ## Providers
 
