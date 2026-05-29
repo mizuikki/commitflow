@@ -42,9 +42,7 @@ function getGitmojiPlacement(promptPreset: PromptPreset): GitmojiPlacement {
 
 export function buildOutputFormat(gitmojiPlacement: GitmojiPlacement): string {
   if (gitmojiPlacement === 'prefix') {
-    return `### Output Format
-
-\`\`\`
+    return `\`\`\`
 <emoji> <type>(<scope>): <subject>
 
 - <body bullet>
@@ -62,9 +60,7 @@ export function buildOutputFormat(gitmojiPlacement: GitmojiPlacement): string {
   }
 
   if (gitmojiPlacement === 'suffix') {
-    return `### Output Format
-
-\`\`\`
+    return `\`\`\`
 <type>(<scope>): <emoji> <subject>
 
 - <body bullet>
@@ -81,9 +77,7 @@ export function buildOutputFormat(gitmojiPlacement: GitmojiPlacement): string {
 - Do NOT add additional "<type>(<scope>): <subject>" lines anywhere in the message`;
   }
 
-  return `### Output Format
-
-\`\`\`
+  return `\`\`\`
 <type>(<scope>): <subject>
 
 - <body bullet>

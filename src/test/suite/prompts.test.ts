@@ -56,6 +56,7 @@ suite('prompts', () => {
       const result = buildOutputFormat('prefix');
       assert.ok(result.includes('<emoji>'));
       assert.ok(result.includes('<emoji> <type>(<scope>): <subject>'));
+      assert.ok(!result.includes('### Output Format'));
       assert.ok(result.includes('Keep the full header under 72 characters'));
       assert.ok(!result.includes('Multiple Type Changes'));
     });
@@ -122,6 +123,7 @@ suite('prompts', () => {
       const { getMainCommitPrompt } = await import('../../prompts');
       const result = await getMainCommitPrompt();
       const content = String(result[0].content);
+      assert.ok(!content.includes('## Output Format\n\n### Output Format'));
       assert.ok(
         content.includes(
           'Changes to generated output, formatting, validation, prompts, or templates are behavior changes; use fix when they correct invalid, misleading, or incompatible output'
