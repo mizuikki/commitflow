@@ -1,4 +1,4 @@
-name: Publish AI Commit Plus VSIX to GitHub Releases
+name: Publish CommitFlow VSIX to GitHub Releases
 
 on:
   push:

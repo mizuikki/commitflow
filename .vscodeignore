@@ -14,4 +14,3 @@ vsc-extension-quickstart.md
 **/*.map
 **/*.ts
 **.tgz
-!CHANGELOG.md

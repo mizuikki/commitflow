@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { generateCommitMsg, getRepo } from './generate-commit-msg';
 import {
   ConfigKeys,
+  COMMITFLOW_NAMESPACE,
   ConfigurationManager,
   PromptPreset,
   ProviderProfile,
@@ -44,7 +45,7 @@ const PROMPT_PRESET_OPTIONS = [
   },
   {
     label: 'Custom',
-    description: 'Use AI_COMMIT_SYSTEM_PROMPT',
+    description: 'Use commitflow.systemPrompt',
     promptPreset: 'custom' as const
   }
 ] as const;
@@ -106,9 +107,9 @@ function getRepositoryLanguageTarget(resourceUri: vscode.Uri): vscode.Configurat
 
 function getRepositoryLanguageState(resourceUri: vscode.Uri) {
   const target = getRepositoryLanguageTarget(resourceUri);
-  const config = vscode.workspace.getConfiguration('ai-commit-plus', resourceUri);
-  const inspectedLanguage = config.inspect<string>(ConfigKeys.AI_COMMIT_LANGUAGE);
-  const effectiveLanguage = config.get<string>(ConfigKeys.AI_COMMIT_LANGUAGE, 'English');
+  const config = vscode.workspace.getConfiguration(COMMITFLOW_NAMESPACE, resourceUri);
+  const inspectedLanguage = config.inspect<string>(ConfigKeys.COMMIT_LANGUAGE);
+  const effectiveLanguage = config.get<string>(ConfigKeys.COMMIT_LANGUAGE, 'English');
 
   let inheritedLanguage = inspectedLanguage?.defaultValue ?? 'English';
   let overrideLanguage: string | undefined;
@@ -137,7 +138,7 @@ function getRepositoryLanguageState(resourceUri: vscode.Uri) {
 
 function getRepositoryPromptPresetState(resourceUri: vscode.Uri) {
   const target = getRepositoryLanguageTarget(resourceUri);
-  const config = vscode.workspace.getConfiguration('ai-commit-plus', resourceUri);
+  const config = vscode.workspace.getConfiguration(COMMITFLOW_NAMESPACE, resourceUri);
   const inspectedPromptPreset = config.inspect<PromptPreset>(ConfigKeys.PROMPT_PRESET);
   const effectivePromptPreset = config.get<PromptPreset>(
     ConfigKeys.PROMPT_PRESET,
@@ -461,14 +462,14 @@ async function setCommitLanguageForCurrentRepository(arg?: any): Promise<void> {
 
   if (selection.clearsOverride) {
     await configManager.updateConfig<string>(
-      ConfigKeys.AI_COMMIT_LANGUAGE,
+      ConfigKeys.COMMIT_LANGUAGE,
       undefined,
       languageState.target,
       resourceUri
     );
-    await vscode.commands.executeCommand('ai-commit-plus.refreshStatusBar');
+    await vscode.commands.executeCommand('commitflow.refreshStatusBar');
     vscode.window.showInformationMessage(
-      `AI Commit Plus language for this repository now follows the inherited setting: ${languageState.inheritedLanguage}.`
+      `CommitFlow language for this repository now follows the inherited setting: ${languageState.inheritedLanguage}.`
     );
     return;
   }
@@ -478,15 +479,15 @@ async function setCommitLanguageForCurrentRepository(arg?: any): Promise<void> {
   }
 
   await configManager.updateConfig(
-    ConfigKeys.AI_COMMIT_LANGUAGE,
+    ConfigKeys.COMMIT_LANGUAGE,
     selection.language,
     languageState.target,
     resourceUri
   );
-  await vscode.commands.executeCommand('ai-commit-plus.refreshStatusBar');
+  await vscode.commands.executeCommand('commitflow.refreshStatusBar');
 
   vscode.window.showInformationMessage(
-    `AI Commit Plus language for this repository set to ${selection.language}.`
+    `CommitFlow language for this repository set to ${selection.language}.`
   );
 }
 
@@ -517,9 +518,9 @@ async function setPromptPresetForCurrentRepository(arg?: any): Promise<void> {
       promptPresetState.target,
       resourceUri
     );
-    await vscode.commands.executeCommand('ai-commit-plus.refreshStatusBar');
+    await vscode.commands.executeCommand('commitflow.refreshStatusBar');
     vscode.window.showInformationMessage(
-      `AI Commit Plus prompt preset for this repository now follows the inherited setting: ${getPromptPresetLabel(
+      `CommitFlow prompt preset for this repository now follows the inherited setting: ${getPromptPresetLabel(
         promptPresetState.inheritedPromptPreset
       )}.`
     );
@@ -536,10 +537,10 @@ async function setPromptPresetForCurrentRepository(arg?: any): Promise<void> {
     promptPresetState.target,
     resourceUri
   );
-  await vscode.commands.executeCommand('ai-commit-plus.refreshStatusBar');
+  await vscode.commands.executeCommand('commitflow.refreshStatusBar');
 
   vscode.window.showInformationMessage(
-    `AI Commit Plus prompt preset for this repository set to ${selection.label}.`
+    `CommitFlow prompt preset for this repository set to ${selection.label}.`
   );
 }
 
@@ -563,7 +564,7 @@ async function createProviderProfile(): Promise<void> {
   );
 
   await configManager.setActiveProviderProfileId(profile.id, vscode.ConfigurationTarget.Global);
-  await vscode.commands.executeCommand('ai-commit-plus.refreshStatusBar');
+  await vscode.commands.executeCommand('commitflow.refreshStatusBar');
   vscode.window.showInformationMessage(`Provider profile "${profile.name}" created.`);
 }
 
@@ -594,7 +595,7 @@ async function editProviderProfile(profile: ProviderProfile): Promise<void> {
   );
 
   vscode.window.showInformationMessage(`Provider profile "${updatedProfile.name}" updated.`);
-  await vscode.commands.executeCommand('ai-commit-plus.refreshStatusBar');
+  await vscode.commands.executeCommand('commitflow.refreshStatusBar');
 }
 
 async function copyProviderProfile(profile: ProviderProfile): Promise<void> {
@@ -626,7 +627,7 @@ async function copyProviderProfile(profile: ProviderProfile): Promise<void> {
     copiedProfile.id,
     vscode.ConfigurationTarget.Global
   );
-  await vscode.commands.executeCommand('ai-commit-plus.refreshStatusBar');
+  await vscode.commands.executeCommand('commitflow.refreshStatusBar');
   vscode.window.showInformationMessage(`Provider profile "${copiedProfile.name}" copied.`);
 }
 
@@ -641,7 +642,7 @@ async function deleteProviderProfile(profile: ProviderProfile): Promise<void> {
 
   if (confirmed === 'Delete') {
     await configManager.deleteProviderProfile(profile.id);
-    await vscode.commands.executeCommand('ai-commit-plus.refreshStatusBar');
+    await vscode.commands.executeCommand('commitflow.refreshStatusBar');
     vscode.window.showInformationMessage(`Provider profile "${profile.name}" deleted.`);
   }
 }
@@ -656,7 +657,7 @@ async function activateProviderProfile(
     : vscode.ConfigurationTarget.Global;
 
   await configManager.setActiveProviderProfileId(profile.id, target, resourceUri);
-  await vscode.commands.executeCommand('ai-commit-plus.refreshStatusBar');
+  await vscode.commands.executeCommand('commitflow.refreshStatusBar');
   vscode.window.showInformationMessage(`Active provider profile set to "${profile.name}".`);
 }
 
@@ -669,7 +670,7 @@ async function setProviderProfileForCurrentWorkspace(
   const target = getConfigurationTargetForResource(targetUri);
 
   await configManager.setActiveProviderProfileId(profile.id, target, targetUri);
-  await vscode.commands.executeCommand('ai-commit-plus.refreshStatusBar');
+  await vscode.commands.executeCommand('commitflow.refreshStatusBar');
   vscode.window.showInformationMessage(
     `Repository profile set to "${profile.name}" for ${targetUri.fsPath}.`
   );
@@ -792,24 +793,24 @@ export class CommandManager {
   constructor(private context: vscode.ExtensionContext) {}
 
   registerCommands() {
-    this.registerCommand('extension.ai-commit-plus', generateCommitMsg);
+    this.registerCommand('commitflow.generateCommitMessage', generateCommitMsg);
     this.registerCommand(
-      'ai-commit-plus.setCommitLanguageForCurrentRepository',
+      'commitflow.setCommitLanguageForCurrentRepository',
       setCommitLanguageForCurrentRepository
     );
     this.registerCommand(
-      'ai-commit-plus.setPromptPresetForCurrentRepository',
+      'commitflow.setPromptPresetForCurrentRepository',
       setPromptPresetForCurrentRepository
     );
-    this.registerCommand('extension.configure-ai-commit-plus', () =>
-      vscode.commands.executeCommand('workbench.action.openSettings', 'ai-commit-plus')
+    this.registerCommand('commitflow.openSettings', () =>
+      vscode.commands.executeCommand('workbench.action.openSettings', COMMITFLOW_NAMESPACE)
     );
-    this.registerCommand('ai-commit-plus.manageProviderProfiles', manageProviderProfiles);
-    this.registerCommand('ai-commit-plus.switchProviderProfile', async () => {
+    this.registerCommand('commitflow.manageProviderProfiles', manageProviderProfiles);
+    this.registerCommand('commitflow.switchProviderProfile', async () => {
       await manageProviderProfiles();
     });
 
-    this.registerCommand('ai-commit-plus.showAvailableModels', showAvailableModelsForProfile);
+    this.registerCommand('commitflow.showAvailableModels', showAvailableModelsForProfile);
   }
 
   private registerCommand(command: string, handler: (...args: any[]) => any) {
@@ -828,7 +829,7 @@ export class CommandManager {
         } else if (result === 'Configure') {
           await vscode.commands.executeCommand(
             'workbench.action.openSettings',
-            'ai-commit-plus'
+            COMMITFLOW_NAMESPACE
           );
         }
       }

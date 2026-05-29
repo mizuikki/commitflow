@@ -21,19 +21,37 @@ export interface ResolvedProviderProfile {
   apiKey: string;
 }
 
-const AI_COMMIT_NAMESPACE = 'ai-commit-plus';
+export const COMMITFLOW_NAMESPACE = 'commitflow';
+const LEGACY_AI_COMMIT_NAMESPACE = 'ai-commit-plus';
 const AVAILABLE_OPENAI_MODELS_KEY = 'availableOpenAIModels';
+const LEGACY_CONFIG_MIGRATION_KEY = 'legacyAiCommitPlusConfigMigrated';
 const PROFILE_API_KEY_PREFIX = 'providerProfiles.apiKey:';
 
 export enum ConfigKeys {
-  AI_COMMIT_LANGUAGE = 'AI_COMMIT_LANGUAGE',
-  PROMPT_PRESET = 'PROMPT_PRESET',
-  SYSTEM_PROMPT = 'AI_COMMIT_SYSTEM_PROMPT',
-  PROVIDER_PROFILES = 'PROVIDER_PROFILES',
-  ACTIVE_PROVIDER_PROFILE_ID = 'ACTIVE_PROVIDER_PROFILE_ID',
-  DEBUG_LOGGING = 'DEBUG_LOGGING',
-  MAX_DIFF_CHARS = 'MAX_DIFF_CHARS',
+  COMMIT_LANGUAGE = 'commitLanguage',
+  PROMPT_PRESET = 'promptPreset',
+  SYSTEM_PROMPT = 'systemPrompt',
+  PROVIDER_PROFILES = 'providerProfiles',
+  ACTIVE_PROVIDER_PROFILE_ID = 'activeProviderProfileId',
+  DEBUG_LOGGING = 'debugLogging',
+  MAX_DIFF_CHARS = 'maxDiffChars',
 }
+
+const LEGACY_CONFIG_KEY_MAP: Record<ConfigKeys, string> = {
+  [ConfigKeys.COMMIT_LANGUAGE]: 'AI_COMMIT_LANGUAGE',
+  [ConfigKeys.PROMPT_PRESET]: 'PROMPT_PRESET',
+  [ConfigKeys.SYSTEM_PROMPT]: 'AI_COMMIT_SYSTEM_PROMPT',
+  [ConfigKeys.PROVIDER_PROFILES]: 'PROVIDER_PROFILES',
+  [ConfigKeys.ACTIVE_PROVIDER_PROFILE_ID]: 'ACTIVE_PROVIDER_PROFILE_ID',
+  [ConfigKeys.DEBUG_LOGGING]: 'DEBUG_LOGGING',
+  [ConfigKeys.MAX_DIFF_CHARS]: 'MAX_DIFF_CHARS'
+};
+
+type InspectedConfigurationValue<T> = {
+  globalValue?: T;
+  workspaceValue?: T;
+  workspaceFolderValue?: T;
+};
 
 export function normalizeString(value: unknown): string | undefined {
   if (typeof value !== 'string') {
@@ -59,7 +77,27 @@ export function getConfigurationTargetForResource(
     ? vscode.ConfigurationTarget.WorkspaceFolder
     : vscode.workspace.workspaceFile || vscode.workspace.workspaceFolders?.length
       ? vscode.ConfigurationTarget.Workspace
-      : vscode.ConfigurationTarget.Global;
+    : vscode.ConfigurationTarget.Global;
+}
+
+function getInspectedValueForTarget<T>(
+  inspected: InspectedConfigurationValue<T> | undefined,
+  target: vscode.ConfigurationTarget
+): T | undefined {
+  if (!inspected) {
+    return undefined;
+  }
+
+  switch (target) {
+    case vscode.ConfigurationTarget.Global:
+      return inspected.globalValue;
+    case vscode.ConfigurationTarget.Workspace:
+      return inspected.workspaceValue;
+    case vscode.ConfigurationTarget.WorkspaceFolder:
+      return inspected.workspaceFolderValue;
+  }
+
+  return undefined;
 }
 
 /**
@@ -75,14 +113,14 @@ export class ConfigurationManager {
   private constructor(context: vscode.ExtensionContext) {
     this.context = context;
     this.disposable = vscode.workspace.onDidChangeConfiguration((event) => {
-      if (!event.affectsConfiguration(AI_COMMIT_NAMESPACE)) {
+      if (!event.affectsConfiguration(COMMITFLOW_NAMESPACE)) {
         return;
       }
 
       this.configCache.clear();
 
       if (
-        event.affectsConfiguration(`${AI_COMMIT_NAMESPACE}.${ConfigKeys.PROVIDER_PROFILES}`)
+        event.affectsConfiguration(`${COMMITFLOW_NAMESPACE}.${ConfigKeys.PROVIDER_PROFILES}`)
       ) {
         this.updateOpenAIModelList().catch((error) => {
           console.error('Failed to refresh OpenAI model cache:', error);
@@ -100,7 +138,53 @@ export class ConfigurationManager {
 
   async initialize(): Promise<void> {
     this.initialization = Promise.resolve();
+    await this.migrateLegacyConfiguration();
     await this.ensureActiveProfileExists();
+  }
+
+  private async migrateLegacyConfiguration(): Promise<void> {
+    if (this.context.globalState.get<boolean>(LEGACY_CONFIG_MIGRATION_KEY)) {
+      return;
+    }
+
+    await this.migrateLegacyConfigurationForTarget(vscode.ConfigurationTarget.Global);
+
+    if (vscode.workspace.workspaceFile || vscode.workspace.workspaceFolders?.length) {
+      await this.migrateLegacyConfigurationForTarget(vscode.ConfigurationTarget.Workspace);
+    }
+
+    for (const folder of vscode.workspace.workspaceFolders ?? []) {
+      await this.migrateLegacyConfigurationForTarget(
+        vscode.ConfigurationTarget.WorkspaceFolder,
+        folder.uri
+      );
+    }
+
+    await this.context.globalState.update(LEGACY_CONFIG_MIGRATION_KEY, true);
+    this.configCache.clear();
+  }
+
+  private async migrateLegacyConfigurationForTarget(
+    target: vscode.ConfigurationTarget,
+    resourceUri?: vscode.Uri
+  ): Promise<void> {
+    const currentConfig = vscode.workspace.getConfiguration(COMMITFLOW_NAMESPACE, resourceUri);
+    const legacyConfig = vscode.workspace.getConfiguration(LEGACY_AI_COMMIT_NAMESPACE, resourceUri);
+
+    for (const [currentKey, legacyKey] of Object.entries(LEGACY_CONFIG_KEY_MAP)) {
+      const currentValue = getInspectedValueForTarget(
+        currentConfig.inspect(currentKey),
+        target
+      );
+      const legacyValue = getInspectedValueForTarget(
+        legacyConfig.inspect(legacyKey),
+        target
+      );
+
+      if (currentValue === undefined && legacyValue !== undefined) {
+        await currentConfig.update(currentKey, legacyValue, target);
+      }
+    }
   }
 
   private getCacheKey(key: string, resourceUri?: vscode.Uri): string {
@@ -112,8 +196,8 @@ export class ConfigurationManager {
 
     if (!this.configCache.has(cacheKey)) {
       const config = resourceUri
-        ? vscode.workspace.getConfiguration(AI_COMMIT_NAMESPACE, resourceUri)
-        : vscode.workspace.getConfiguration(AI_COMMIT_NAMESPACE);
+        ? vscode.workspace.getConfiguration(COMMITFLOW_NAMESPACE, resourceUri)
+        : vscode.workspace.getConfiguration(COMMITFLOW_NAMESPACE);
       this.configCache.set(cacheKey, config.get<T>(key, defaultValue!));
     }
     return this.configCache.get(cacheKey);
@@ -126,8 +210,8 @@ export class ConfigurationManager {
     resourceUri?: vscode.Uri
   ): Promise<void> {
     const config = resourceUri
-      ? vscode.workspace.getConfiguration(AI_COMMIT_NAMESPACE, resourceUri)
-      : vscode.workspace.getConfiguration(AI_COMMIT_NAMESPACE);
+      ? vscode.workspace.getConfiguration(COMMITFLOW_NAMESPACE, resourceUri)
+      : vscode.workspace.getConfiguration(COMMITFLOW_NAMESPACE);
 
     await config.update(key, value, target);
     this.configCache.clear();

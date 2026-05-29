@@ -95,6 +95,8 @@ suite('prompts', () => {
       assert.ok(content.includes('Good: chore(settings): 🔧 set gitmoji prompt preset'));
       assert.ok(content.includes('Bad: chore(settings): 🔧 add gitmoji prompt preset setting'));
       assert.ok(content.includes('chore(settings):'));
+      assert.ok(content.includes('The staged diff is the source of truth'));
+      assert.ok(content.includes('Use additional context only when it is consistent with the diff'));
     });
   });
 });

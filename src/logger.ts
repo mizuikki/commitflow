@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
-
-const EXTENSION_NAMESPACE = 'ai-commit-plus';
+import { COMMITFLOW_NAMESPACE, ConfigKeys } from './config';
 
 let outputChannel: vscode.OutputChannel | undefined;
 let extensionContext: vscode.ExtensionContext | undefined;
@@ -11,15 +10,15 @@ export function setLoggerContext(context: vscode.ExtensionContext) {
 
 function getOutputChannel(): vscode.OutputChannel {
   if (!outputChannel) {
-    outputChannel = vscode.window.createOutputChannel('AI Commit Plus');
+    outputChannel = vscode.window.createOutputChannel('CommitFlow');
     extensionContext?.subscriptions.push(outputChannel);
   }
   return outputChannel;
 }
 
 function isDebugEnabled(resourceUri?: vscode.Uri): boolean {
-  const config = vscode.workspace.getConfiguration(EXTENSION_NAMESPACE, resourceUri);
-  return Boolean(config.get<boolean>('DEBUG_LOGGING', false));
+  const config = vscode.workspace.getConfiguration(COMMITFLOW_NAMESPACE, resourceUri);
+  return Boolean(config.get<boolean>(ConfigKeys.DEBUG_LOGGING, false));
 }
 
 function formatDebugValue(value: unknown): string {

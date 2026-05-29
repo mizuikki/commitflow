@@ -1,8 +1,8 @@
 {
-  "name": "ai-commit-plus",
-  "displayName": "AI Commit Plus",
-  "description": "Use OpenAI and Gemini APIs to review Git changes, generate conventional commit messages, and keep commit conventions consistent with the AI Commit Plus workflow.",
-  "version": "0.3.8",
+  "name": "commitflow",
+  "displayName": "CommitFlow",
+  "description": "Turn staged Git changes into clear Conventional Commit messages with OpenAI-compatible and Gemini providers.",
+  "version": "1.0.0-alpha.1",
   "engines": {
     "node": ">=24",
     "vscode": "^1.77.0"
@@ -20,46 +20,46 @@
     "Commitizen",
     "Commit Message",
     "Commit Message Generator",
-    "AI Commit Plus",
+    "CommitFlow",
     "Auto Commit"
   ],
   "publisher": "mizuikki",
-  "repository": "https://github.com/mizuikki/ai-commit-plus",
+  "repository": "https://github.com/mizuikki/commitflow",
   "icon": "images/logo.png",
   "contributes": {
     "commands": [
       {
-        "command": "extension.ai-commit-plus",
+        "command": "commitflow.generateCommitMessage",
         "icon": {
-          "dark": "images/icon.svg",
-          "light": "images/icon.svg"
+          "dark": "images/icon-dark.svg",
+          "light": "images/icon-light.svg"
         },
-        "title": "AI Commit Plus"
+        "title": "CommitFlow"
       },
       {
-        "command": "ai-commit-plus.showAvailableModels",
+        "command": "commitflow.showAvailableModels",
         "title": "Show Available OpenAI Models"
       },
       {
-        "command": "ai-commit-plus.setCommitLanguageForCurrentRepository",
+        "command": "commitflow.setCommitLanguageForCurrentRepository",
         "title": "Set Commit Language for Current Repository"
       },
       {
-        "command": "ai-commit-plus.setPromptPresetForCurrentRepository",
+        "command": "commitflow.setPromptPresetForCurrentRepository",
         "title": "Set Prompt Preset for Current Repository"
       },
       {
-        "command": "ai-commit-plus.manageProviderProfiles",
+        "command": "commitflow.manageProviderProfiles",
         "title": "Manage Provider Profiles"
       },
       {
-        "command": "ai-commit-plus.switchProviderProfile",
+        "command": "commitflow.switchProviderProfile",
         "title": "Switch Provider Profile"
       }
     ],
     "configuration": {
       "properties": {
-        "ai-commit-plus.AI_COMMIT_LANGUAGE": {
+        "commitflow.commitLanguage": {
           "default": "English",
           "markdownDescription": "Default commit message language. This setting supports repository-level overrides through workspace or folder settings.",
           "scope": "resource",
@@ -107,7 +107,7 @@
           ],
           "type": "string"
         },
-        "ai-commit-plus.PROMPT_PRESET": {
+        "commitflow.promptPreset": {
           "type": "string",
           "default": "without-gitmoji",
           "scope": "resource",
@@ -120,16 +120,16 @@
           "enumDescriptions": [
             "Generate emoji-prefixed Conventional Commit messages",
             "Generate Conventional Commit messages without emojis",
-            "Use AI_COMMIT_SYSTEM_PROMPT as the full custom system prompt"
+            "Use commitflow.systemPrompt as the full custom system prompt"
           ]
         },
-        "ai-commit-plus.AI_COMMIT_SYSTEM_PROMPT": {
+        "commitflow.systemPrompt": {
           "type": "string",
           "default": "",
           "scope": "resource",
           "description": "Custom system prompt for generating commit messages"
         },
-        "ai-commit-plus.PROVIDER_PROFILES": {
+        "commitflow.providerProfiles": {
           "type": "array",
           "default": [],
           "description": "Stored provider profiles. API keys are stored separately in VS Code SecretStorage.",
@@ -170,30 +170,31 @@
             ]
           }
         },
-        "ai-commit-plus.ACTIVE_PROVIDER_PROFILE_ID": {
+        "commitflow.activeProviderProfileId": {
           "type": "string",
           "default": "",
+          "scope": "resource",
           "description": "Active provider profile id. Can be overridden per workspace or repository."
         },
-        "ai-commit-plus.DEBUG_LOGGING": {
+        "commitflow.debugLogging": {
           "type": "boolean",
           "default": false,
           "scope": "resource",
-          "markdownDescription": "Enable debug logs for troubleshooting. Logs are written to the \"AI Commit Plus\" Output channel. Avoid enabling this in shared workspaces if you consider repository metadata sensitive."
+          "markdownDescription": "Enable debug logs for troubleshooting. Logs are written to the \"CommitFlow\" Output channel. Avoid enabling this in shared workspaces if you consider repository metadata sensitive."
         },
-        "ai-commit-plus.MAX_DIFF_CHARS": {
+        "commitflow.maxDiffChars": {
           "type": "number",
           "default": 200000,
           "scope": "resource",
-          "markdownDescription": "Maximum number of characters allowed in the staged diff sent to the provider. If exceeded, AI Commit Plus will ask you to split the commit into smaller chunks."
+          "markdownDescription": "Maximum number of characters allowed in the staged diff sent to the provider. If exceeded, CommitFlow will ask you to split the commit into smaller chunks."
         }
       },
-      "title": "AI Commit Plus"
+      "title": "CommitFlow"
     },
     "menus": {
       "scm/title": [
         {
-          "command": "extension.ai-commit-plus",
+          "command": "commitflow.generateCommitMessage",
           "group": "navigation"
         }
       ]

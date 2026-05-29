@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { CommandManager } from './commands';
-import { ConfigKeys, ConfigurationManager, PromptPreset } from './config';
+import { COMMITFLOW_NAMESPACE, ConfigKeys, ConfigurationManager, PromptPreset } from './config';
 import { setLoggerContext } from './logger';
 
 function getPromptPresetLabel(promptPreset: PromptPreset): string {
@@ -83,7 +83,7 @@ function createCombinedStatusBarItem(
       resourceUri
     );
     const language = configManager.getConfig<string>(
-      ConfigKeys.AI_COMMIT_LANGUAGE,
+      ConfigKeys.COMMIT_LANGUAGE,
       'English',
       resourceUri
     );
@@ -95,7 +95,7 @@ function createCombinedStatusBarItem(
       `Language: ${language}`,
       `Prompt: ${getPromptPresetLabel(promptPreset)}`
     ].join('\n');
-    item.command = 'ai-commit-plus.openStatusBarMenu';
+    item.command = 'commitflow.openStatusBarMenu';
     item.show();
   };
 
@@ -105,17 +105,17 @@ function createCombinedStatusBarItem(
         {
           label: 'Switch Provider Profile',
           description: 'Change the active AI provider profile',
-          command: 'ai-commit-plus.switchProviderProfile'
+          command: 'commitflow.switchProviderProfile'
         },
         {
           label: 'Set Commit Language for Current Repository',
           description: 'Change the commit message language for the active repository',
-          command: 'ai-commit-plus.setCommitLanguageForCurrentRepository'
+          command: 'commitflow.setCommitLanguageForCurrentRepository'
         },
         {
           label: 'Set Prompt Preset for Current Repository',
           description: 'Switch between Gitmoji, No Emoji, or Custom prompt presets',
-          command: 'ai-commit-plus.setPromptPresetForCurrentRepository'
+          command: 'commitflow.setPromptPresetForCurrentRepository'
         }
       ],
       {
@@ -133,8 +133,8 @@ function createCombinedStatusBarItem(
   void refresh();
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('ai-commit-plus.refreshStatusBar', refresh),
-    vscode.commands.registerCommand('ai-commit-plus.openStatusBarMenu', openMenu),
+    vscode.commands.registerCommand('commitflow.refreshStatusBar', refresh),
+    vscode.commands.registerCommand('commitflow.openStatusBarMenu', openMenu),
     vscode.window.onDidChangeActiveTextEditor(() => {
       void refresh();
     }),
@@ -143,10 +143,10 @@ function createCombinedStatusBarItem(
     }),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (
-        event.affectsConfiguration(`ai-commit-plus.${ConfigKeys.AI_COMMIT_LANGUAGE}`) ||
-        event.affectsConfiguration(`ai-commit-plus.${ConfigKeys.PROMPT_PRESET}`) ||
-        event.affectsConfiguration(`ai-commit-plus.${ConfigKeys.ACTIVE_PROVIDER_PROFILE_ID}`) ||
-        event.affectsConfiguration(`ai-commit-plus.${ConfigKeys.PROVIDER_PROFILES}`)
+        event.affectsConfiguration(`${COMMITFLOW_NAMESPACE}.${ConfigKeys.COMMIT_LANGUAGE}`) ||
+        event.affectsConfiguration(`${COMMITFLOW_NAMESPACE}.${ConfigKeys.PROMPT_PRESET}`) ||
+        event.affectsConfiguration(`${COMMITFLOW_NAMESPACE}.${ConfigKeys.ACTIVE_PROVIDER_PROFILE_ID}`) ||
+        event.affectsConfiguration(`${COMMITFLOW_NAMESPACE}.${ConfigKeys.PROVIDER_PROFILES}`)
       ) {
         void refresh();
       }
@@ -188,7 +188,7 @@ export async function activate(context: vscode.ExtensionContext) {
       );
 
       if (result === 'Yes') {
-        await vscode.commands.executeCommand('ai-commit-plus.manageProviderProfiles');
+        await vscode.commands.executeCommand('commitflow.manageProviderProfiles');
       }
       return;
     }
@@ -206,7 +206,7 @@ export async function activate(context: vscode.ExtensionContext) {
       );
 
       if (result === 'Yes') {
-        await vscode.commands.executeCommand('ai-commit-plus.manageProviderProfiles');
+        await vscode.commands.executeCommand('commitflow.manageProviderProfiles');
       }
     }
   } catch (error) {

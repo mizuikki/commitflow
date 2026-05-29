@@ -1,159 +1,136 @@
-<a name="readme-top"></a>
-
 <div align="center">
 
-<img height="120" src="./images/logo.png" alt="AI Commit Plus logo">
+<img height="120" src="./images/logo-readme.png" alt="CommitFlow logo">
 
-<h1>AI Commit Plus</h1>
+# CommitFlow
 
-Generate Conventional Commit messages from staged Git diffs with OpenAI-compatible and Gemini APIs, right inside VS Code.
+Turn staged Git diffs into clear Conventional Commit messages from inside VS Code.
 
-**English** · [简体中文](./README.zh_CN.md) · [Report Bug][github-issues-link] · [Request Feature][github-issues-link]
+[Releases][github-release-link] · [Issues][github-issues-link]
 
 [![][github-release-shield]][github-release-link]
 [![][github-downloads-shield]][github-downloads-link]
-[![][github-contributors-shield]][github-contributors-link]
+[![][github-license-shield]][github-license-link]
 [![][github-stars-shield]][github-stars-link]
 [![][github-issues-shield]][github-issues-link]
-[![][github-license-shield]][github-license-link]
-
-![](./aicommit.gif)
 
 </div>
 
-## Highlights
+## Why CommitFlow
 
-- **AI-powered commit messages** - send staged diffs to OpenAI, Azure OpenAI, DeepSeek, or Gemini and get back a ready-to-use Conventional Commit message.
-- **Gitmoji or plain Conventional Commits** - switch between emoji-prefixed and plain formats with one click.
-- **19 languages** - generate commit subjects and bodies in English, Chinese, Japanese, Korean, French, and more.
-- **Per-repository overrides** - set a different language, prompt preset, or provider profile for individual repositories.
-- **Provider Profiles** - save multiple API configurations and switch between them without editing settings by hand.
-- **Secure API keys** - keys are stored in VS Code SecretStorage, never in settings.json.
-- **Extra context from the SCM input** - type a hint in the Source Control message box before generating, and the AI will incorporate it.
+CommitFlow helps you move from staged changes to a reviewable commit message without leaving the Source Control view. It reads the staged diff, combines it with optional context from the SCM input box, and writes back a Conventional Commit message that you can edit before committing.
+
+Workflow:
+
+```text
+Stage changes -> optionally type a hint in the SCM input -> click CommitFlow -> review the commit message
+```
+
+## Features
+
+- Generate Conventional Commit messages from staged Git diffs.
+- Use OpenAI-compatible providers, including OpenAI, Azure OpenAI, DeepSeek, and compatible gateways.
+- Use Google Gemini providers.
+- Store API keys in VS Code SecretStorage.
+- Manage multiple provider profiles and switch between them quickly.
+- Override language, prompt preset, and active provider per repository.
+- Choose plain Conventional Commits or Gitmoji-enhanced output.
+- Limit oversized staged diffs before they are sent to the provider.
+- Enable debug logging when troubleshooting provider requests.
 
 ## Installation
 
-AI Commit Plus is currently distributed as a VSIX package through GitHub Releases. It is not published to the Visual Studio Marketplace.
+CommitFlow is distributed as a VSIX package through GitHub Releases. It is not published to the Visual Studio Marketplace yet.
 
-1. Download the latest `.vsix` from [GitHub Releases][github-release-link].
-2. Run `Extensions: Install from VSIX...` from the Command Palette.
-3. Select the downloaded `ai-commit-plus-<version>.vsix`.
-
-> Requires Node.js `24.14.1` or later for local development and packaging.
+1. Download the latest `commitflow-<version>.vsix` from [GitHub Releases][github-release-link].
+2. Open the VS Code Command Palette.
+3. Run `Extensions: Install from VSIX...`.
+4. Select the downloaded VSIX file.
 
 ## Quick Start
 
-1. Install the `.vsix` package from GitHub Releases and enable `AI Commit Plus`.
-2. Run `Manage Provider Profiles` from the Command Palette (`Ctrl+Shift+P`).
-3. Create a profile: pick a provider type (OpenAI-compatible or Gemini), enter a name, model, and API key.
+1. Install and enable CommitFlow.
+2. Run `Manage Provider Profiles`.
+3. Create a provider profile with a model and API key.
 4. Stage the files you want to commit.
-5. (Optional) Type extra context in the Source Control message box.
-6. Click the **AI Commit Plus** button in the Source Control title area.
-7. Review the generated message and commit.
+5. Optionally type extra context in the Source Control message box.
+6. Click `CommitFlow` in the Source Control title bar.
+7. Review and edit the generated commit message before committing.
 
-The status bar shows the current provider, language, and prompt preset. Click it to change any of them on the fly.
+## Providers
 
-## Provider Profiles
+CommitFlow supports two provider types:
 
-Profiles let you save and switch between multiple AI provider configurations. Each profile stores the provider type, display name, base URL, model, temperature, and Azure API version, while the API key is kept in VS Code SecretStorage.
-
-| Command | Description |
+| Provider Type | Use For |
 | :--- | :--- |
-| `Manage Provider Profiles` | Create, edit, copy, delete, or activate profiles |
-| `Switch Provider Profile` | Quick shortcut to the profile switcher |
+| `OpenAI-compatible` | OpenAI, Azure OpenAI, DeepSeek, or compatible chat-completions APIs |
+| `Gemini` | Google Gemini models |
 
-Supported provider types:
-
-- **OpenAI-compatible** - OpenAI, Azure OpenAI, DeepSeek, and any API that speaks the OpenAI chat-completions protocol.
-- **Gemini** - Google Gemini models.
+Provider profiles store the provider type, name, model, temperature, base URL, and Azure API version. API keys are stored separately in VS Code SecretStorage.
 
 ## Commands
 
 | Command | Description |
 | :--- | :--- |
-| `AI Commit Plus` | Generate a commit message from staged changes (available in the SCM title bar) |
-| `Manage Provider Profiles` | Add, edit, copy, or delete provider profiles |
-| `Switch Provider Profile` | Change the active provider profile |
-| `Show Available OpenAI Models` | Browse and pick a model from an OpenAI-compatible endpoint |
-| `Set Commit Language for Current Repository` | Override the commit language for the current repository |
-| `Set Prompt Preset for Current Repository` | Override the prompt preset (Gitmoji / plain / custom) for the current repository |
+| `CommitFlow` | Generate a commit message from staged changes |
+| `Manage Provider Profiles` | Create, edit, copy, delete, activate, or set repository-specific profiles |
+| `Switch Provider Profile` | Quickly switch the active profile |
+| `Show Available OpenAI Models` | Load and select models from an OpenAI-compatible endpoint |
+| `Set Commit Language for Current Repository` | Override commit message language for the current repository |
+| `Set Prompt Preset for Current Repository` | Override Gitmoji, plain, or custom prompt behavior |
 
-## Configuration
+## Settings
 
-All settings live under the `ai-commit-plus.` prefix.
+All settings use the `commitflow.` namespace.
 
-| Setting | Type | Default | Notes |
-| :--- | :---: | :---: | :--- |
-| `PROVIDER_PROFILES` | array | `[]` | Saved provider profiles; API keys are stored in SecretStorage |
-| `ACTIVE_PROVIDER_PROFILE_ID` | string | `""` | Active profile ID; can be overridden per workspace or folder |
-| `AI_COMMIT_LANGUAGE` | string | `English` | Commit message language (19 options); supports per-repo overrides |
-| `PROMPT_PRESET` | string | `without-gitmoji` | `with-gitmoji`, `without-gitmoji`, or `custom`; supports per-repo overrides |
-| `AI_COMMIT_SYSTEM_PROMPT` | string | `""` | Custom system prompt used when `PROMPT_PRESET` is `custom` |
+| Setting | Default | Description |
+| :--- | :--- | :--- |
+| `commitLanguage` | `English` | Commit message language |
+| `promptPreset` | `without-gitmoji` | `with-gitmoji`, `without-gitmoji`, or `custom` |
+| `systemPrompt` | `""` | Full custom system prompt used when `promptPreset` is `custom` |
+| `providerProfiles` | `[]` | Saved provider profiles |
+| `activeProviderProfileId` | `""` | Active provider profile, with repository-level overrides |
+| `debugLogging` | `false` | Write troubleshooting logs to the CommitFlow output channel |
+| `maxDiffChars` | `200000` | Maximum staged diff length sent to the provider |
 
-## Repository-Level Overrides
+## Migration
 
-You can override the commit language, prompt preset, and active provider profile for individual repositories. Overrides are stored as VS Code workspace or folder settings (typically in `.vscode/settings.json`).
+CommitFlow is the independent successor to AI Commit Plus. On first launch, it copies existing `ai-commit-plus.*` settings into the new `commitflow.*` namespace when the new setting is not already configured. Existing provider profile API keys remain usable because SecretStorage keys are preserved.
 
-Run these commands from the Command Palette when the target repository is open:
-
-- `Set Commit Language for Current Repository`
-- `Set Prompt Preset for Current Repository`
-- `Manage Provider Profiles` -> pick a profile -> **Set for current workspace**
-
-> If `.vscode/settings.json` is tracked by Git, the override will appear as a local change.
-
-## Local Development
+## Development
 
 ```bash
-git clone https://github.com/mizuikki/ai-commit-plus.git
-cd ai-commit-plus
+git clone https://github.com/mizuikki/commitflow.git
+cd commitflow
 npm install
+npm run compile
+npm test
 ```
 
-Open the project in VS Code and press `F5` to launch an Extension Development Host.
+Useful commands:
 
-You can also develop with GitHub Codespaces:
+| Command | Description |
+| :--- | :--- |
+| `npm run lint` | Run ESLint |
+| `npm run compile` | Build the extension bundle |
+| `npm test` | Run the VS Code extension test suite |
+| `npm run package` | Build a versioned VSIX into `artifacts/` |
 
-[![][github-codespace-shield]][github-codespace-link]
+## Attribution
 
-## Contributing
-
-Issues and pull requests are welcome. Use [GitHub Issues][github-issues-link] for bugs, feature requests, and discussion.
-
-[![][pr-welcome-shield]][pr-welcome-link]
-
-### Contributors
-
-[![][github-contrib-shield]][github-contrib-link]
-
-## Project History
-
-AI Commit Plus began as a fork of [Sitoi/ai-commit](https://github.com/Sitoi/ai-commit) and has since evolved with independent branding, Provider Profiles, per-repository overrides, Gemini support, and a combined status bar.
-
-## Credits
-
-- **auto-commit** - <https://github.com/lynxife/auto-commit>
-- **opencommit** - <https://github.com/di-sukharev/opencommit>
+CommitFlow originated from AI Commit Plus, which was derived from [Sitoi/ai-commit](https://github.com/Sitoi/ai-commit). CommitFlow is independently maintained after the `v0.3.8` baseline and no longer tracks upstream changes.
 
 ## License
 
-This project is [MIT](./license) licensed.
+CommitFlow is licensed under the [MIT License](./LICENSE). See [NOTICE](./NOTICE) for source attribution.
 
-[github-codespace-link]: https://codespaces.new/mizuikki/ai-commit-plus
-[github-codespace-shield]: https://github.com/mizuikki/ai-commit-plus/blob/main/images/codespaces.png?raw=true
-[github-contributors-link]: https://github.com/mizuikki/ai-commit-plus/graphs/contributors
-[github-contributors-shield]: https://img.shields.io/github/contributors/mizuikki/ai-commit-plus?color=c4f042&labelColor=black&style=flat-square
-[github-downloads-link]: https://github.com/mizuikki/ai-commit-plus/releases
-[github-downloads-shield]: https://img.shields.io/github/downloads/mizuikki/ai-commit-plus/total?label=downloads&labelColor=black&style=flat-square
-[github-issues-link]: https://github.com/mizuikki/ai-commit-plus/issues
-[github-issues-shield]: https://img.shields.io/github/issues/mizuikki/ai-commit-plus?color=ff80eb&labelColor=black&style=flat-square
-[github-license-link]: https://github.com/mizuikki/ai-commit-plus/blob/main/license
-[github-license-shield]: https://img.shields.io/github/license/mizuikki/ai-commit-plus?color=white&labelColor=black&style=flat-square
-[github-release-link]: https://github.com/mizuikki/ai-commit-plus/releases
-[github-release-shield]: https://img.shields.io/github/v/release/mizuikki/ai-commit-plus?display_name=tag&label=release&color=blue&labelColor=black&style=flat-square
-[github-stars-link]: https://github.com/mizuikki/ai-commit-plus/stargazers
-[github-stars-shield]: https://img.shields.io/github/stars/mizuikki/ai-commit-plus?color=ffcb47&labelColor=black&style=flat-square
-[pr-welcome-link]: https://github.com/mizuikki/ai-commit-plus/pulls
-[pr-welcome-shield]: https://img.shields.io/badge/PRs-welcome-ffcb47?labelColor=black&style=for-the-badge
-[github-contrib-link]: https://github.com/mizuikki/ai-commit-plus/graphs/contributors
-[github-contrib-shield]: https://contrib.rocks/image?repo=mizuikki%2Fai-commit-plus
+[github-downloads-link]: https://github.com/mizuikki/commitflow/releases
+[github-downloads-shield]: https://img.shields.io/github/downloads/mizuikki/commitflow/total?label=downloads&labelColor=black&style=flat-square
+[github-issues-link]: https://github.com/mizuikki/commitflow/issues
+[github-issues-shield]: https://img.shields.io/github/issues/mizuikki/commitflow?color=ff80eb&labelColor=black&style=flat-square
+[github-license-link]: https://github.com/mizuikki/commitflow/blob/main/LICENSE
+[github-license-shield]: https://img.shields.io/github/license/mizuikki/commitflow?color=white&labelColor=black&style=flat-square
+[github-release-link]: https://github.com/mizuikki/commitflow/releases
+[github-release-shield]: https://img.shields.io/github/v/release/mizuikki/commitflow?display_name=tag&label=release&color=blue&labelColor=black&style=flat-square
+[github-stars-link]: https://github.com/mizuikki/commitflow/stargazers
+[github-stars-shield]: https://img.shields.io/github/stars/mizuikki/commitflow?color=ffcb47&labelColor=black&style=flat-square

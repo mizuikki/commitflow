@@ -1,9 +1,8 @@
 import * as fs from 'fs-extra';
 import * as vscode from 'vscode';
-import { ConfigKeys, ConfigurationManager, PromptPreset } from './config';
+import { COMMITFLOW_NAMESPACE, ConfigKeys, ConfigurationManager, PromptPreset } from './config';
 import { buildCommitTypeReferenceTable, getGitmojiForCommitType } from './gitmoji';
 
-const AI_COMMIT_NAMESPACE = 'ai-commit-plus';
 const DEFAULT_PROMPT_PRESET: PromptPreset = 'without-gitmoji';
 const COMMIT_PROMPT_TEMPLATE_PATH = 'prompt/commit.md';
 
@@ -115,7 +114,7 @@ function getConfiguredPromptPreset(resourceUri?: vscode.Uri): PromptPreset {
 }
 
 function hasExplicitPromptPreset(resourceUri?: vscode.Uri): boolean {
-  const config = vscode.workspace.getConfiguration(AI_COMMIT_NAMESPACE, resourceUri);
+  const config = vscode.workspace.getConfiguration(COMMITFLOW_NAMESPACE, resourceUri);
   const inspectedPreset = config.inspect<PromptPreset>(ConfigKeys.PROMPT_PRESET);
 
   return (
@@ -142,7 +141,7 @@ async function resolvePromptContent(language: string, resourceUri?: vscode.Uri):
   if (promptPreset === 'custom') {
     if (!customPrompt) {
       throw new Error(
-        'Prompt preset is set to custom, but AI_COMMIT_SYSTEM_PROMPT is empty.'
+        'Prompt preset is set to custom, but commitflow.systemPrompt is empty.'
       );
     }
     return customPrompt;
@@ -164,7 +163,7 @@ async function resolvePromptContent(language: string, resourceUri?: vscode.Uri):
  */
 export const getMainCommitPrompt = async (resourceUri?: vscode.Uri) => {
   const language = ConfigurationManager.getInstance().getConfig<string>(
-    ConfigKeys.AI_COMMIT_LANGUAGE,
+    ConfigKeys.COMMIT_LANGUAGE,
     'English',
     resourceUri
   );

@@ -71,7 +71,7 @@ const generateCommitMessageChatCompletionPrompt = async (
   if (additionalContext) {
     chatContextAsCompletionRequest.push({
       role: 'user',
-      content: `Additional context for the changes:\n${additionalContext}`
+      content: `Additional context for the changes. Use it only when it is consistent with the staged diff:\n${additionalContext}`
     });
   }
 
@@ -145,7 +145,7 @@ export async function generateCommitMsg(arg?: GenerateCommitMsgArg) {
 
       if (Number.isFinite(configMaxDiffChars) && diff.length > configMaxDiffChars) {
         throw new Error(
-          `Staged diff is too large (${diff.length} chars). Please split the commit into smaller staged changes or increase ai-commit-plus.MAX_DIFF_CHARS.`
+          `Staged diff is too large (${diff.length} chars). Please split the commit into smaller staged changes or increase commitflow.maxDiffChars.`
         );
       }
 

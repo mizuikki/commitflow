@@ -13,7 +13,7 @@ export class ProgressHandler {
     return vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
-        title: `[AI Commit Plus] ${title}`,
+        title: `[CommitFlow] ${title}`,
         cancellable: true
       },
       task
