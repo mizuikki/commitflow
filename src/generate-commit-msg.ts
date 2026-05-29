@@ -9,6 +9,7 @@ import { GeminiAPI } from './gemini-utils';
 import { AnthropicAPI } from './anthropic-utils';
 import { logDebug } from './logger';
 import { formatProviderErrorMessage } from './provider-error-utils';
+import { beginCommitGeneration, endCommitGeneration } from './runtime-state';
 
 export { formatProviderErrorMessage } from './provider-error-utils';
 
@@ -96,8 +97,11 @@ export async function getRepo(arg?: GenerateCommitMsgArg): Promise<GitExtensionR
  * @returns {Promise<void>} - A promise that resolves when the commit message has been generated and set in the SCM input box.
  */
 export async function generateCommitMsg(arg?: GenerateCommitMsgArg) {
-  return ProgressHandler.withProgress('', async (progress) => {
-    try {
+  beginCommitGeneration();
+  void vscode.commands.executeCommand('commitflow.refreshStatusBar');
+
+  try {
+    return await ProgressHandler.withProgress('', async (progress) => {
       const configManager = ConfigurationManager.getInstance();
       const repo = await getRepo(arg);
       const resolvedProfile = await configManager.getActiveProviderProfile(repo.rootUri);
@@ -177,6 +181,7 @@ export async function generateCommitMsg(arg?: GenerateCommitMsgArg) {
           ? 'Generating commit message with additional context...'
           : 'Generating commit message...'
       });
+
       try {
         const commitMessage = (await generateWithProvider(
           resolvedProfile,
@@ -184,21 +189,18 @@ export async function generateCommitMsg(arg?: GenerateCommitMsgArg) {
           repo.rootUri
         )) ?? undefined;
 
-        if (commitMessage) {
-          logDebug(
-            'Commit message generated',
-            { commitMessageLength: commitMessage.length },
-            repo.rootUri
-          );
-          scmInputBox.value = commitMessage;
-        } else {
+        if (!commitMessage) {
           throw new Error('Failed to generate commit message');
         }
-      } catch (err) {
-        const errorMessage = formatProviderErrorMessage(
-          err,
-          resolvedProfile.profile.driverKind
+
+        logDebug(
+          'Commit message generated',
+          { commitMessageLength: commitMessage.length },
+          repo.rootUri
         );
+        scmInputBox.value = commitMessage;
+      } catch (err) {
+        const errorMessage = formatProviderErrorMessage(err, resolvedProfile.profile.driverKind);
         logDebug(
           'Provider request failed',
           { message: errorMessage },
@@ -206,8 +208,9 @@ export async function generateCommitMsg(arg?: GenerateCommitMsgArg) {
         );
         throw new Error(errorMessage);
       }
-    } catch (error) {
-      throw error;
-    }
-  });
+    });
+  } finally {
+    endCommitGeneration();
+    void vscode.commands.executeCommand('commitflow.refreshStatusBar');
+  }
 }

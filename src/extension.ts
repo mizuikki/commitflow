@@ -11,6 +11,7 @@ import {
 } from './config';
 import { setLoggerContext } from './logger';
 import { getProviderLabel, supportsModelListing } from './provider-registry';
+import { isCommitGenerationInProgress } from './runtime-state';
 
 function getPromptPresetLabel(promptPreset: PromptPreset): string {
   switch (promptPreset) {
@@ -123,6 +124,18 @@ function getProviderStatusDetail(state: StatusBarState): string {
   return `${providerLabel} / ${state.activeProfile.model}`;
 }
 
+function getStatusBarIconName(state: StatusBarState): string {
+  if (isCommitGenerationInProgress()) {
+    return 'sync~spin';
+  }
+
+  if (!state.profiles.length || !state.activeProfile || !state.hasApiKey) {
+    return 'warning';
+  }
+
+  return 'git-commit';
+}
+
 function buildStatusBarTooltip(state: StatusBarState): string {
   return [
     `Provider: ${state.activeProfile?.name ?? 'No profile'}`,
@@ -131,6 +144,7 @@ function buildStatusBarTooltip(state: StatusBarState): string {
     `Language: ${state.language}`,
     `Prompt: ${getPromptPresetLabel(state.promptPreset)}`,
     state.workspaceOverrideActive ? 'Scope: Workspace override active' : 'Scope: Global active profile',
+    isCommitGenerationInProgress() ? 'Status: Generating commit message...' : undefined,
     state.hasApiKey ? undefined : 'Status: API key missing'
   ].filter(Boolean).join('\n');
 }
@@ -242,7 +256,7 @@ function createCombinedStatusBarItem(
 
   const refresh = async () => {
     const state = await getStatusBarState(configManager);
-    item.text = `$(hubot) ${getProviderStatusLabel(state)}`;
+    item.text = `$(${getStatusBarIconName(state)}) ${getProviderStatusLabel(state)}`;
     item.tooltip = buildStatusBarTooltip(state);
     item.command = 'commitflow.openStatusBarMenu';
     item.show();
