@@ -49,12 +49,14 @@ const DEFAULT_TEST_EXECUTORS: ProviderModelTestExecutors = {
 
 const PRIMARY_MODEL_TEST_OPTIONS: ProviderRequestOptions = {
   temperature: 0,
-  maxOutputTokens: 32
+  maxOutputTokens: 32,
+  captureRenderedPrompt: false
 };
 
 const FALLBACK_MODEL_TEST_OPTIONS: ProviderRequestOptions = {
   temperature: 0,
-  maxOutputTokens: 128
+  maxOutputTokens: 128,
+  captureRenderedPrompt: false
 };
 
 export function buildProviderModelTestMessages(mode: 'strict' | 'fallback' = 'strict'): ChatCompletionMessageParam[] {

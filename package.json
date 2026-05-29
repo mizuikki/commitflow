@@ -44,6 +44,10 @@
         "title": "Show Available Provider Models"
       },
       {
+        "command": "commitflow.showLastRenderedPrompt",
+        "title": "Show Last Rendered Prompt"
+      },
+      {
         "command": "commitflow.setCommitLanguageForCurrentRepository",
         "title": "Set Commit Language for Current Repository"
       },

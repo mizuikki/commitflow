@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 import { ResolvedProviderProfile } from './config';
 import { createOpenAIClient } from './api-utils';
 import { logDebug } from './logger';
+import { recordLastRenderedPrompt } from './prompt-inspection';
 import { ProviderRequestOptions } from './provider-request-options';
 
 function coerceChatMessageContentToString(content: unknown): string {
@@ -187,14 +188,24 @@ export async function requestOpenAIChatCompletion(
     resourceUri
   );
 
-  return openai.chat.completions.create({
+  const payload = {
     model: profile.model,
     messages: normalizedMessages,
     temperature,
     ...(options.maxOutputTokens !== undefined
       ? { max_tokens: options.maxOutputTokens }
       : {})
-  });
+  };
+  if (options.captureRenderedPrompt !== false) {
+    recordLastRenderedPrompt(
+      resolvedProfile,
+      'openai.chat.completions.create',
+      payload,
+      resourceUri
+    );
+  }
+
+  return openai.chat.completions.create(payload);
 }
 
 export async function OpenAIChatAPI(

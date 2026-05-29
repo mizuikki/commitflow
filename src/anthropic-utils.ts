@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 import * as vscode from 'vscode';
 import { ResolvedProviderProfile } from './config';
+import { recordLastRenderedPrompt } from './prompt-inspection';
 import { ProviderRequestOptions } from './provider-request-options';
 
 function extractMessageContent(message: ChatCompletionMessageParam | { content?: unknown }): string {
@@ -42,7 +43,7 @@ export function createAnthropicClient(resolvedProfile: ResolvedProviderProfile) 
 export async function AnthropicAPI(
   messages: ChatCompletionMessageParam[],
   resolvedProfile: ResolvedProviderProfile,
-  _resourceUri?: vscode.Uri,
+  resourceUri?: vscode.Uri,
   options: ProviderRequestOptions = {}
 ) {
   const anthropic = createAnthropicClient(resolvedProfile);
@@ -56,18 +57,28 @@ export async function AnthropicAPI(
     .map((message) => extractMessageContent(message))
     .join('\n\n');
 
-  const response = await anthropic.messages.create({
+  const payload = {
     model: profile.model,
     max_tokens: options.maxOutputTokens ?? 256,
     temperature: options.temperature ?? profile.inference?.temperature ?? 0.7,
     system: system || undefined,
     messages: [
       {
-        role: 'user',
+        role: 'user' as const,
         content: userContent
       }
     ]
-  });
+  };
+  if (options.captureRenderedPrompt !== false) {
+    recordLastRenderedPrompt(
+      resolvedProfile,
+      'anthropic.messages.create',
+      payload,
+      resourceUri
+    );
+  }
+
+  const response = await anthropic.messages.create(payload);
 
   const firstBlock = response.content.find((block) => block.type === 'text');
   return firstBlock && 'text' in firstBlock ? firstBlock.text : undefined;

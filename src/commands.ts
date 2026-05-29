@@ -13,6 +13,10 @@ import {
 } from './config';
 import { getProviderLabel } from './provider-registry';
 import { ProviderManagementPanel } from './provider-panel';
+import {
+  formatRenderedPromptSnapshot,
+  getLastRenderedPrompt
+} from './prompt-inspection';
 
 const COMMIT_LANGUAGE_OPTIONS = [
   { label: 'Simplified Chinese', description: '简体中文' },
@@ -420,6 +424,33 @@ async function showAvailableModelsForProfile(context: vscode.ExtensionContext): 
   });
 }
 
+async function showLastRenderedPrompt(): Promise<void> {
+  const snapshot = getLastRenderedPrompt();
+
+  if (!snapshot) {
+    vscode.window.showInformationMessage(
+      'No rendered prompt has been captured yet. Run CommitFlow first.'
+    );
+    return;
+  }
+
+  const selection = await vscode.window.showWarningMessage(
+    'The rendered prompt contains staged diff content and any SCM input context. Open it only in a trusted environment.',
+    { modal: true },
+    'Open'
+  );
+
+  if (selection !== 'Open') {
+    return;
+  }
+
+  const document = await vscode.workspace.openTextDocument({
+    content: formatRenderedPromptSnapshot(snapshot),
+    language: 'json'
+  });
+  await vscode.window.showTextDocument(document, { preview: false });
+}
+
 export class CommandManager {
   private disposables: vscode.Disposable[] = [];
 
@@ -445,6 +476,7 @@ export class CommandManager {
     this.registerCommand('commitflow.showAvailableModels', () =>
       showAvailableModelsForProfile(this.context)
     );
+    this.registerCommand('commitflow.showLastRenderedPrompt', showLastRenderedPrompt);
   }
 
   private registerCommand(command: string, handler: (...args: any[]) => any) {

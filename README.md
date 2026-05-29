@@ -92,8 +92,13 @@ Provider profiles store provider identity, runtime driver, auth scheme, connecti
 | `Manage Provider Profiles` | Open the provider management panel to create, edit, copy, delete, test connectivity, test real model responses, activate, or set repository-specific profiles |
 | `Switch Provider Profile` | Quickly switch the active profile |
 | `Show Available Provider Models` | Open the provider panel and load models for the active profile when supported |
+| `Show Last Rendered Prompt` | Open the most recent provider payload in an in-memory JSON document for debugging |
 | `Set Commit Language for Current Repository` | Override commit message language for the current repository |
 | `Set Prompt Preset for Current Repository` | Override Gitmoji prefix, Gitmoji suffix, plain, or custom prompt behavior |
+
+`Show Last Rendered Prompt` opens the most recent provider request payload as an
+in-memory JSON document. It can include staged diff content and SCM input context;
+CommitFlow does not persist it unless you explicitly save the document.
 
 ## Settings
 

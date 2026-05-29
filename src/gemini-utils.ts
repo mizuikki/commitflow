@@ -2,6 +2,7 @@ import { GoogleGenAI } from '@google/genai';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 import * as vscode from 'vscode';
 import { ResolvedProviderProfile } from './config';
+import { recordLastRenderedPrompt } from './prompt-inspection';
 import { ProviderRequestOptions } from './provider-request-options';
 
 function extractMessageContent(message: ChatCompletionMessageParam | { content?: unknown }): string {
@@ -59,7 +60,7 @@ export async function GeminiAPI(
       .map((message) => extractMessageContent(message))
       .join('\n\n');
 
-    const response = await ai.models.generateContent({
+    const payload = {
       model: profile.model,
       contents: userContent,
       config: {
@@ -69,7 +70,17 @@ export async function GeminiAPI(
           ? { maxOutputTokens: options.maxOutputTokens }
           : {})
       }
-    });
+    };
+    if (options.captureRenderedPrompt !== false) {
+      recordLastRenderedPrompt(
+        resolvedProfile,
+        'gemini.models.generateContent',
+        payload,
+        resourceUri
+      );
+    }
+
+    const response = await ai.models.generateContent(payload);
 
     return response.text;
   } catch (error) {

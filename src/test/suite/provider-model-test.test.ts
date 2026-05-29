@@ -186,6 +186,26 @@ suite('provider model test', () => {
     assert.strictEqual(result.responseText, 'pong');
   });
 
+  test('disables rendered prompt capture for provider model tests', async () => {
+    const { testProviderModelResponse } = await import('../../provider-model-test');
+    let captureRenderedPrompt: boolean | undefined;
+
+    await testProviderModelResponse(
+      createResolvedProfile(),
+      undefined,
+      {
+        openai: async (_messages, _resolvedProfile, _resourceUri, options) => {
+          captureRenderedPrompt = options?.captureRenderedPrompt;
+          return { finalText: 'pong' };
+        },
+        anthropic: async () => 'unused',
+        gemini: async () => 'unused'
+      }
+    );
+
+    assert.strictEqual(captureRenderedPrompt, false);
+  });
+
   test('retries once with a fallback prompt when the first response is empty', async () => {
     const { testProviderModelResponse } = await import('../../provider-model-test');
     let calls = 0;
