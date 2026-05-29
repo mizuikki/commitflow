@@ -128,4 +128,65 @@ suite('config', () => {
       assert.strictEqual(draft.connection.baseURL, 'https://api.deepseek.com');
     });
   });
+
+  suite('provider model presets', () => {
+    test('keeps provider catalog and model preset providers aligned', async () => {
+      const { PROVIDER_CATALOG } = await import('../../provider-registry');
+      const { PROVIDER_MODEL_PRESETS } = await import('../../provider-model-presets');
+
+      const catalogProviderIds = new Set(PROVIDER_CATALOG.map((entry) => entry.id));
+      for (const entry of PROVIDER_MODEL_PRESETS) {
+        assert.ok(catalogProviderIds.has(entry.providerId), `${entry.providerId} must exist in provider catalog`);
+      }
+    });
+
+    test('keeps recommended provider models in static presets', async () => {
+      const { PROVIDER_MODEL_PRESETS } = await import('../../provider-model-presets');
+
+      for (const entry of PROVIDER_MODEL_PRESETS) {
+        if (!entry.recommendedModel) {
+          continue;
+        }
+
+        assert.ok(
+          entry.modelPresets.includes(entry.recommendedModel),
+          `${entry.providerId} recommended model must be present in model presets`
+        );
+      }
+    });
+
+    test('includes current DeepSeek model presets', async () => {
+      const { getProviderModelPresets } = await import('../../provider-model-presets');
+      const deepseek = getProviderModelPresets('deepseek');
+
+      assert.ok(deepseek.includes('deepseek-v4-flash'));
+      assert.ok(deepseek.includes('deepseek-v4-pro'));
+    });
+
+    test('includes current Gemini stable presets without shut down preview defaults', async () => {
+      const { getProviderModelPresetEntry } = await import('../../provider-model-presets');
+      const gemini = getProviderModelPresetEntry('gemini');
+
+      assert.strictEqual(gemini.recommendedModel, 'gemini-3.5-flash');
+      assert.ok(gemini.modelPresets.includes('gemini-3.5-flash'));
+      assert.ok(!gemini.modelPresets.includes('gemini-3-pro-preview'));
+    });
+
+    test('includes current Groq OpenAI OSS presets', async () => {
+      const { getProviderModelPresetEntry } = await import('../../provider-model-presets');
+      const groq = getProviderModelPresetEntry('groq');
+
+      assert.strictEqual(groq.recommendedModel, 'openai/gpt-oss-120b');
+      assert.ok(groq.modelPresets.includes('openai/gpt-oss-120b'));
+      assert.ok(groq.modelPresets.includes('openai/gpt-oss-20b'));
+    });
+
+    test('returns empty presets for providers without static model recommendations', async () => {
+      const { getProviderModelPresetEntry } = await import('../../provider-model-presets');
+      const ollama = getProviderModelPresetEntry('ollama');
+
+      assert.strictEqual(ollama.recommendedModel, undefined);
+      assert.deepStrictEqual(ollama.modelPresets, []);
+    });
+  });
 });

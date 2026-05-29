@@ -15,6 +15,10 @@ import {
   supportsModelListing,
   validateProviderProfile
 } from './provider-registry';
+import {
+  getProviderModelPresets,
+  getRecommendedProviderModel
+} from './provider-model-presets';
 import { createGeminiAPIClient } from './gemini-utils';
 import { ProviderProfile, ProviderProfileInput, ResolvedProviderProfile } from './provider-types';
 
@@ -295,7 +299,8 @@ export class ProviderManagementPanel {
           driverKind: entry.driverKind,
           authScheme: entry.authScheme,
           supportsModelListing: entry.supportsModelListing,
-          recommendedModel: entry.recommendedModel,
+          recommendedModel: getRecommendedProviderModel(entry.id),
+          modelPresets: getProviderModelPresets(entry.id),
           defaults: createDefaultProfileDraft(entry.id),
           requiredFields: entry.requiredFields
         }))
@@ -1082,9 +1087,42 @@ export class ProviderManagementPanel {
       '</div>';
     }
 
+    function modelPresetSelectField(providerEntry, value) {
+      const presets = providerEntry.modelPresets || [];
+      const customSelected = !value || !presets.includes(value);
+      const customValue = customSelected ? value : '';
+      return '<div class="field">' +
+        '<label for="modelPreset">Model</label>' +
+        '<select id="modelPreset">' +
+          presets.map((model) =>
+            '<option value="' + escapeHtml(model) + '"' + (model === value ? ' selected' : '') + '>' +
+              escapeHtml(model) +
+            '</option>'
+          ).join('') +
+          '<option value="__custom__"' + (customSelected ? ' selected' : '') + '>Custom model ID</option>' +
+        '</select>' +
+      '</div>' +
+      '<div class="field" id="customModelField"' + (customSelected ? '' : ' style="display: none;"') + '>' +
+        '<label for="customModel">Custom Model ID</label>' +
+        '<input id="customModel" type="text" value="' + escapeHtml(String(customValue || '')) + '" placeholder="' +
+          escapeHtml(providerEntry.recommendedModel || 'Model name') +
+        '" />' +
+        '<span class="field-hint">Use this for unreleased, local, deployment-specific, or OpenAI-compatible model IDs.</span>' +
+      '</div>';
+    }
+
     function getFormValue(id) {
       const input = document.getElementById(id);
       return input ? input.value.trim() : '';
+    }
+
+    function getModelFormValue() {
+      const preset = getFormValue('modelPreset');
+      if (preset && preset !== '__custom__') {
+        return preset;
+      }
+
+      return getFormValue('customModel');
     }
 
     function collectDraftFromForm() {
@@ -1096,7 +1134,7 @@ export class ProviderManagementPanel {
         id: draft.id,
         name: getFormValue('profileName'),
         providerId: getFormValue('providerId'),
-        model: getFormValue('model'),
+        model: getModelFormValue(),
         apiKey: document.getElementById('apiKey') ? document.getElementById('apiKey').value : '',
         connection: {
           baseURL: getFormValue('baseURL'),
@@ -1315,6 +1353,7 @@ export class ProviderManagementPanel {
                 : 'Prefilled with the provider default endpoint. Change it only if you use a proxy or custom gateway.';
       const loadModelsDisabled = !selected || !selected.supportsModelListing;
       const clearWorkspaceDisabled = !state.workspaceProfileId;
+      const currentModelPresets = providerEntry.modelPresets || [];
 
       els.mainContent.innerHTML = [
         '<section class="section">',
@@ -1323,11 +1362,7 @@ export class ProviderManagementPanel {
           '<div class="grid">',
             field('Profile Name', 'profileName', draft.name, { full: true, placeholder: 'My provider profile' }),
             selectField('Provider', 'providerId', draft.providerId, groupedCatalog),
-            field('Model', 'model', draft.model, {
-              placeholder:
-                providerEntry.recommendedModel ||
-                (draft.providerId === 'azure-openai' ? 'Deployment or model name' : 'Model name')
-            }),
+            modelPresetSelectField(providerEntry, draft.model),
           '</div>',
         '</section>',
         '<section class="section">',
@@ -1370,28 +1405,26 @@ export class ProviderManagementPanel {
 
       document.getElementById('providerId').addEventListener('change', (event) => {
         const currentProviderEntry = getCatalogEntry(draft.providerId);
+        const currentDraft = collectDraftFromForm();
         const nextProviderId = event.target.value;
         const nextDraft = defaultDraftFromCatalog(nextProviderId);
         if (!currentProviderEntry || !nextDraft) {
           return;
         }
         const keepCustomName =
-          draft.name &&
-          draft.name !== currentProviderEntry.label;
+          currentDraft.name &&
+          currentDraft.name !== currentProviderEntry.label;
         const keepCustomModel =
-          draft.model &&
-          draft.model !== currentProviderEntry.recommendedModel;
+          currentDraft.model &&
+          !(currentProviderEntry.modelPresets || []).includes(currentDraft.model);
 
         draft = {
           ...nextDraft,
           id: draft.id,
-          name: keepCustomName ? draft.name : nextDraft.name,
-          model: keepCustomModel ? draft.model : nextDraft.model,
+          name: keepCustomName ? currentDraft.name : nextDraft.name,
+          model: keepCustomModel ? currentDraft.model : nextDraft.model,
           inference: {
-            temperature:
-              draft.inference && draft.inference.temperature !== undefined
-                ? draft.inference.temperature
-                : nextDraft.inference.temperature
+            temperature: currentDraft.inference?.temperature || nextDraft.inference.temperature
           }
         };
         draftMode = draft.id ? 'selected' : 'catalog';
@@ -1422,9 +1455,24 @@ export class ProviderManagementPanel {
       document.getElementById('clearWorkspaceButton').addEventListener('click', () => {
         vscode.postMessage({ type: 'clear-workspace' });
       });
+      document.getElementById('modelPreset').addEventListener('change', (event) => {
+        const customField = document.getElementById('customModelField');
+        const customInput = document.getElementById('customModel');
+        if (!customField || !customInput) {
+          return;
+        }
+
+        const useCustom = event.target.value === '__custom__';
+        customField.style.display = useCustom ? '' : 'none';
+        if (useCustom && !customInput.value && draft.model && !currentModelPresets.includes(draft.model)) {
+          customInput.value = draft.model;
+        }
+      });
 
       [
         'providerId',
+        'modelPreset',
+        'customModel',
         'baseURL',
         'endpoint',
         'deployment',
@@ -1461,8 +1509,17 @@ export class ProviderManagementPanel {
       Array.from(modelList.querySelectorAll('[data-model]')).forEach((button) => {
         button.addEventListener('click', () => {
           const nextModel = button.getAttribute('data-model');
-          const modelInput = document.getElementById('model');
-          modelInput.value = nextModel;
+          const presetInput = document.getElementById('modelPreset');
+          const customField = document.getElementById('customModelField');
+          const customInput = document.getElementById('customModel');
+          if (!presetInput || !customField || !customInput) {
+            return;
+          }
+
+          const hasPreset = Array.from(presetInput.options).some((option) => option.value === nextModel);
+          presetInput.value = hasPreset ? nextModel : '__custom__';
+          customField.style.display = hasPreset ? 'none' : '';
+          customInput.value = hasPreset ? '' : nextModel;
         });
       });
     }

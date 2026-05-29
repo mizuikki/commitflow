@@ -5,6 +5,7 @@ import {
   ProviderId,
   ProviderProfile
 } from './provider-types';
+import { getRecommendedProviderModel } from './provider-model-presets';
 
 export interface ProviderCatalogEntry {
   id: ProviderId;
@@ -14,9 +15,7 @@ export interface ProviderCatalogEntry {
   driverKind: DriverKind;
   authScheme: AuthScheme;
   supportsModelListing: boolean;
-  recommendedModel?: string;
   defaults?: {
-    model?: string;
     connection?: ProviderConnectionConfig;
   };
   requiredFields: Array<keyof ProviderConnectionConfig>;
@@ -31,10 +30,6 @@ export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
     driverKind: 'openai',
     authScheme: 'bearer',
     supportsModelListing: true,
-    recommendedModel: 'gpt-5.5',
-    defaults: {
-      model: 'gpt-5.5'
-    },
     requiredFields: []
   },
   {
@@ -45,10 +40,6 @@ export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
     driverKind: 'azure-openai',
     authScheme: 'api-key',
     supportsModelListing: false,
-    recommendedModel: 'gpt-5.5',
-    defaults: {
-      model: 'gpt-5.5'
-    },
     requiredFields: ['endpoint', 'deployment', 'apiVersion']
   },
   {
@@ -59,10 +50,6 @@ export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
     driverKind: 'anthropic',
     authScheme: 'api-key',
     supportsModelListing: false,
-    recommendedModel: 'claude-sonnet-4-20250514',
-    defaults: {
-      model: 'claude-sonnet-4-20250514'
-    },
     requiredFields: []
   },
   {
@@ -73,10 +60,6 @@ export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
     driverKind: 'gemini',
     authScheme: 'api-key',
     supportsModelListing: false,
-    recommendedModel: 'gemini-2.5-pro',
-    defaults: {
-      model: 'gemini-2.5-pro'
-    },
     requiredFields: []
   },
   {
@@ -87,9 +70,7 @@ export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
     driverKind: 'openai',
     authScheme: 'bearer',
     supportsModelListing: true,
-    recommendedModel: 'deepseek-v4-flash',
     defaults: {
-      model: 'deepseek-v4-flash',
       connection: {
         baseURL: 'https://api.deepseek.com'
       }
@@ -104,9 +85,7 @@ export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
     driverKind: 'openai',
     authScheme: 'bearer',
     supportsModelListing: true,
-    recommendedModel: 'openai/gpt-oss-20b',
     defaults: {
-      model: 'openai/gpt-oss-20b',
       connection: {
         baseURL: 'https://openrouter.ai/api/v1'
       }
@@ -121,9 +100,7 @@ export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
     driverKind: 'openai',
     authScheme: 'bearer',
     supportsModelListing: true,
-    recommendedModel: 'llama-3.3-70b-versatile',
     defaults: {
-      model: 'llama-3.3-70b-versatile',
       connection: {
         baseURL: 'https://api.groq.com/openai/v1'
       }
@@ -239,7 +216,7 @@ export function createDefaultProfileDraft(providerId: ProviderId) {
     providerId: entry.id,
     driverKind: entry.driverKind,
     authScheme: entry.authScheme,
-    model: entry.defaults?.model,
+    model: getRecommendedProviderModel(entry.id),
     connection: { ...(entry.defaults?.connection ?? {}) },
     inference: {
       temperature: 0.7

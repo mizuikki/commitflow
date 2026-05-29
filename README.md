@@ -32,6 +32,7 @@ Stage changes -> optionally type a hint in the SCM input -> click CommitFlow -> 
 - Use OpenAI, Azure OpenAI, Anthropic, Gemini, and compatible providers such as DeepSeek, OpenRouter, Groq, Ollama, and LM Studio.
 - Store API keys in VS Code SecretStorage.
 - Manage multiple provider profiles and switch between them quickly.
+- Pick from provider-specific model presets or enter a custom model ID.
 - Use the left status bar control center to manage provider setup, switching, model loading, and related commit settings.
 - Override language, prompt preset, and active provider per repository.
 - Choose plain Conventional Commits or Gitmoji prefix/suffix output.
@@ -51,7 +52,7 @@ CommitFlow is distributed as a VSIX package through GitHub Releases. It is not p
 
 1. Install and enable CommitFlow.
 2. Run `Manage Provider Profiles`.
-3. Create a provider profile with a model and API key from the provider catalog panel.
+3. Create a provider profile with a preset or custom model and API key from the provider catalog panel.
 4. Stage the files you want to commit.
 5. Optionally type extra context in the Source Control message box.
 6. Click `CommitFlow` in the Source Control title bar.
@@ -80,7 +81,7 @@ CommitFlow supports concrete provider presets backed by a few runtime drivers:
 | `Ollama`, `LM Studio` | Local OpenAI-compatible endpoints |
 | `Custom OpenAI-compatible` | Any compatible endpoint with a custom base URL |
 
-Provider profiles store provider identity, runtime driver, auth scheme, connection settings, and inference settings separately. Azure API version is no longer mixed into generic provider config. API keys are stored separately in VS Code SecretStorage.
+Provider profiles store provider identity, runtime driver, auth scheme, connection settings, and inference settings separately. The model field offers built-in presets maintained from provider documentation plus a `Custom model ID` option for unreleased, local, deployment-specific, or OpenAI-compatible models. Local providers such as Ollama and LM Studio usually use custom model IDs or models fetched with `Load Models`. Azure API version is no longer mixed into generic provider config. API keys are stored separately in VS Code SecretStorage.
 
 ## Commands
 
