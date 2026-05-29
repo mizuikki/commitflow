@@ -4,10 +4,13 @@ import {
   ConfigKeys,
   COMMITFLOW_NAMESPACE,
   ConfigurationManager,
+  DEFAULT_PROMPT_PRESET,
   PromptPreset,
   ProviderProfile,
   ProviderProfileType,
-  getConfigurationTargetForResource
+  getConfigurationTargetForResource,
+  normalizePromptPreset,
+  parsePromptPreset
 } from './config';
 
 const COMMIT_LANGUAGE_OPTIONS = [
@@ -34,14 +37,19 @@ const COMMIT_LANGUAGE_OPTIONS = [
 
 const PROMPT_PRESET_OPTIONS = [
   {
-    label: 'With Gitmoji',
-    description: 'Use emoji-prefixed commit messages',
-    promptPreset: 'with-gitmoji' as const
-  },
-  {
     label: 'Without Gitmoji',
     description: 'Use Conventional Commit messages without emojis',
     promptPreset: 'without-gitmoji' as const
+  },
+  {
+    label: 'Gitmoji Prefix',
+    description: 'Prefix the header with a Gitmoji emoji',
+    promptPreset: 'gitmoji-prefix' as const
+  },
+  {
+    label: 'Gitmoji Suffix',
+    description: 'Place a Gitmoji emoji after the colon',
+    promptPreset: 'gitmoji-suffix' as const
   },
   {
     label: 'Custom',
@@ -139,29 +147,33 @@ function getRepositoryLanguageState(resourceUri: vscode.Uri) {
 function getRepositoryPromptPresetState(resourceUri: vscode.Uri) {
   const target = getRepositoryLanguageTarget(resourceUri);
   const config = vscode.workspace.getConfiguration(COMMITFLOW_NAMESPACE, resourceUri);
-  const inspectedPromptPreset = config.inspect<PromptPreset>(ConfigKeys.PROMPT_PRESET);
-  const effectivePromptPreset = config.get<PromptPreset>(
-    ConfigKeys.PROMPT_PRESET,
-    'without-gitmoji'
+  const inspectedPromptPreset = config.inspect<string>(ConfigKeys.PROMPT_PRESET);
+  const effectivePromptPreset = normalizePromptPreset(
+    config.get<string>(ConfigKeys.PROMPT_PRESET, DEFAULT_PROMPT_PRESET),
+    DEFAULT_PROMPT_PRESET
   );
 
-  let inheritedPromptPreset = inspectedPromptPreset?.defaultValue ?? 'without-gitmoji';
+  let inheritedPromptPreset = normalizePromptPreset(
+    inspectedPromptPreset?.defaultValue,
+    DEFAULT_PROMPT_PRESET
+  );
   let overridePromptPreset: PromptPreset | undefined;
   if (target === vscode.ConfigurationTarget.WorkspaceFolder) {
-    overridePromptPreset = inspectedPromptPreset?.workspaceFolderValue;
-    inheritedPromptPreset =
+    overridePromptPreset = parsePromptPreset(inspectedPromptPreset?.workspaceFolderValue);
+    inheritedPromptPreset = normalizePromptPreset(
       inspectedPromptPreset?.workspaceValue ??
-      inspectedPromptPreset?.globalValue ??
-      inspectedPromptPreset?.defaultValue ??
-      'without-gitmoji';
+        inspectedPromptPreset?.globalValue ??
+        inspectedPromptPreset?.defaultValue,
+      DEFAULT_PROMPT_PRESET
+    );
   } else if (target === vscode.ConfigurationTarget.Workspace) {
-    overridePromptPreset = inspectedPromptPreset?.workspaceValue;
-    inheritedPromptPreset =
-      inspectedPromptPreset?.globalValue ??
-      inspectedPromptPreset?.defaultValue ??
-      'without-gitmoji';
+    overridePromptPreset = parsePromptPreset(inspectedPromptPreset?.workspaceValue);
+    inheritedPromptPreset = normalizePromptPreset(
+      inspectedPromptPreset?.globalValue ?? inspectedPromptPreset?.defaultValue,
+      DEFAULT_PROMPT_PRESET
+    );
   } else {
-    overridePromptPreset = inspectedPromptPreset?.globalValue;
+    overridePromptPreset = parsePromptPreset(inspectedPromptPreset?.globalValue);
   }
 
   return {
@@ -208,8 +220,10 @@ function createRepositoryLanguageQuickPickItems(
 
 function getPromptPresetLabel(promptPreset: PromptPreset): string {
   switch (promptPreset) {
-    case 'with-gitmoji':
-      return 'With Gitmoji';
+    case 'gitmoji-prefix':
+      return 'Gitmoji Prefix';
+    case 'gitmoji-suffix':
+      return 'Gitmoji Suffix';
     case 'without-gitmoji':
       return 'Without Gitmoji';
     case 'custom':

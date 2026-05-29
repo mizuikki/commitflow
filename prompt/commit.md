@@ -51,8 +51,7 @@ You will act as a git commit message generator. When receiving a git diff, you w
 - Body text must be in {{LANGUAGE}}
 - If the diff contains multiple kinds of changes, list them as bullets in the body (do not create additional headers)
 
-- Good: chore(settings): 🔧 set gitmoji prompt preset
-- Bad: chore(settings): 🔧 add gitmoji prompt preset setting
+{{SETTINGS_ACTION_EXAMPLES}}
 
 {{GITMOJI_RULES}}
 

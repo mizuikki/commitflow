@@ -23,6 +23,23 @@ suite('config', () => {
     });
   });
 
+  suite('normalizePromptPreset', () => {
+    test('maps legacy with-gitmoji to gitmoji-prefix', async () => {
+      const { normalizePromptPreset } = await import('../../config');
+      assert.strictEqual(normalizePromptPreset('with-gitmoji'), 'gitmoji-prefix');
+    });
+
+    test('preserves gitmoji-suffix', async () => {
+      const { normalizePromptPreset } = await import('../../config');
+      assert.strictEqual(normalizePromptPreset('gitmoji-suffix'), 'gitmoji-suffix');
+    });
+
+    test('falls back for unknown values', async () => {
+      const { normalizePromptPreset } = await import('../../config');
+      assert.strictEqual(normalizePromptPreset('unknown'), 'without-gitmoji');
+    });
+  });
+
   suite('createProviderProfileId', () => {
     test('generates id starting with profile- prefix', async () => {
       const { createProviderProfileId } = await import('../../config');

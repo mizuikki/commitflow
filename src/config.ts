@@ -4,7 +4,13 @@ import * as vscode from 'vscode';
 import { createOpenAIClient } from './api-utils';
 
 export type ProviderProfileType = 'openai-compatible' | 'gemini';
-export type PromptPreset = 'with-gitmoji' | 'without-gitmoji' | 'custom';
+export type PromptPreset =
+  | 'gitmoji-prefix'
+  | 'gitmoji-suffix'
+  | 'without-gitmoji'
+  | 'custom';
+type LegacyPromptPreset = 'with-gitmoji';
+type ConfiguredPromptPreset = PromptPreset | LegacyPromptPreset;
 
 export interface ProviderProfile {
   id: string;
@@ -25,7 +31,9 @@ export const COMMITFLOW_NAMESPACE = 'commitflow';
 const LEGACY_AI_COMMIT_NAMESPACE = 'ai-commit-plus';
 const AVAILABLE_OPENAI_MODELS_KEY = 'availableOpenAIModels';
 const LEGACY_CONFIG_MIGRATION_KEY = 'legacyAiCommitPlusConfigMigrated';
+const PROMPT_PRESET_VALUE_MIGRATION_KEY = 'promptPresetValueMigrated';
 const PROFILE_API_KEY_PREFIX = 'providerProfiles.apiKey:';
+export const DEFAULT_PROMPT_PRESET: PromptPreset = 'without-gitmoji';
 
 export enum ConfigKeys {
   COMMIT_LANGUAGE = 'commitLanguage',
@@ -60,6 +68,27 @@ export function normalizeString(value: unknown): string | undefined {
 
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+export function parsePromptPreset(value: unknown): PromptPreset | undefined {
+  switch (value) {
+    case 'with-gitmoji':
+    case 'gitmoji-prefix':
+      return 'gitmoji-prefix';
+    case 'gitmoji-suffix':
+    case 'without-gitmoji':
+    case 'custom':
+      return value;
+    default:
+      return undefined;
+  }
+}
+
+export function normalizePromptPreset(
+  value: unknown,
+  fallback: PromptPreset = DEFAULT_PROMPT_PRESET
+): PromptPreset {
+  return parsePromptPreset(value) ?? fallback;
 }
 
 export function createProviderProfileId(): string {
@@ -139,6 +168,7 @@ export class ConfigurationManager {
   async initialize(): Promise<void> {
     this.initialization = Promise.resolve();
     await this.migrateLegacyConfiguration();
+    await this.migratePromptPresetValues();
     await this.ensureActiveProfileExists();
   }
 
@@ -185,6 +215,43 @@ export class ConfigurationManager {
         await currentConfig.update(currentKey, legacyValue, target);
       }
     }
+  }
+
+  private async migratePromptPresetValues(): Promise<void> {
+    if (this.context.globalState.get<boolean>(PROMPT_PRESET_VALUE_MIGRATION_KEY)) {
+      return;
+    }
+
+    await this.migratePromptPresetValueForTarget(vscode.ConfigurationTarget.Global);
+
+    if (vscode.workspace.workspaceFile || vscode.workspace.workspaceFolders?.length) {
+      await this.migratePromptPresetValueForTarget(vscode.ConfigurationTarget.Workspace);
+    }
+
+    for (const folder of vscode.workspace.workspaceFolders ?? []) {
+      await this.migratePromptPresetValueForTarget(
+        vscode.ConfigurationTarget.WorkspaceFolder,
+        folder.uri
+      );
+    }
+
+    await this.context.globalState.update(PROMPT_PRESET_VALUE_MIGRATION_KEY, true);
+    this.configCache.clear();
+  }
+
+  private async migratePromptPresetValueForTarget(
+    target: vscode.ConfigurationTarget,
+    resourceUri?: vscode.Uri
+  ): Promise<void> {
+    const config = vscode.workspace.getConfiguration(COMMITFLOW_NAMESPACE, resourceUri);
+    const inspectedPromptPreset = config.inspect<ConfiguredPromptPreset>(ConfigKeys.PROMPT_PRESET);
+    const currentValue = getInspectedValueForTarget(inspectedPromptPreset, target);
+
+    if (currentValue !== 'with-gitmoji') {
+      return;
+    }
+
+    await config.update(ConfigKeys.PROMPT_PRESET, 'gitmoji-prefix', target);
   }
 
   private getCacheKey(key: string, resourceUri?: vscode.Uri): string {

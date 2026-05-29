@@ -1,10 +1,17 @@
 import * as fs from 'fs-extra';
 import * as vscode from 'vscode';
-import { COMMITFLOW_NAMESPACE, ConfigKeys, ConfigurationManager, PromptPreset } from './config';
+import {
+  COMMITFLOW_NAMESPACE,
+  ConfigKeys,
+  ConfigurationManager,
+  DEFAULT_PROMPT_PRESET,
+  PromptPreset,
+  normalizePromptPreset
+} from './config';
 import { buildCommitTypeReferenceTable, getGitmojiForCommitType } from './gitmoji';
 
-const DEFAULT_PROMPT_PRESET: PromptPreset = 'without-gitmoji';
 const COMMIT_PROMPT_TEMPLATE_PATH = 'prompt/commit.md';
+type GitmojiPlacement = 'none' | 'prefix' | 'suffix';
 
 let commitPromptTemplateCache: string | undefined;
 
@@ -18,8 +25,39 @@ async function getCommitPromptTemplate(): Promise<string> {
   return commitPromptTemplateCache;
 }
 
-export function buildOutputFormat(includeGitmoji: boolean): string {
-  if (includeGitmoji) {
+function getGitmojiPlacement(promptPreset: PromptPreset): GitmojiPlacement {
+  switch (promptPreset) {
+    case 'gitmoji-prefix':
+      return 'prefix';
+    case 'gitmoji-suffix':
+      return 'suffix';
+    default:
+      return 'none';
+  }
+}
+
+export function buildOutputFormat(gitmojiPlacement: GitmojiPlacement): string {
+  if (gitmojiPlacement === 'prefix') {
+    return `### Output Format
+
+\`\`\`
+<emoji> <type>(<scope>): <subject>
+
+- <body bullet>
+- <body bullet>
+\`\`\`
+
+### Rules
+
+- Output exactly ONE header line in Conventional Commits form
+- Keep the full header under 72 characters
+- Keep the subject under 50 characters
+- If changes span multiple categories, pick the most impactful <type> for the header
+- Describe all other changes as "-" bullets in the body
+- Do NOT add additional "<type>(<scope>): <subject>" lines anywhere in the message`;
+  }
+
+  if (gitmojiPlacement === 'suffix') {
     return `### Output Format
 
 \`\`\`
@@ -58,25 +96,63 @@ export function buildOutputFormat(includeGitmoji: boolean): string {
 - Do NOT add additional "<type>(<scope>): <subject>" lines anywhere in the message`;
 }
 
-export function buildGitmojiRules(includeGitmoji: boolean): string {
-  return includeGitmoji
-    ? `### Gitmoji
+export function buildGitmojiRules(gitmojiPlacement: GitmojiPlacement): string {
+  if (gitmojiPlacement === 'prefix') {
+    return `### Gitmoji
+
+- Use exactly one emoji from the Type Reference table
+- Prefix the emoji before the commit type
+- Example: ✨ feat(auth): add oauth2 login
+- Choose emojis only from the Type Reference table
+- Do not output Gitmoji shortcodes such as ":bug:"`;
+  }
+
+  if (gitmojiPlacement === 'suffix') {
+    return `### Gitmoji
 
 - Use exactly one emoji from the Type Reference table
 - Place the emoji inside the subject (after ":") instead of prefixing the type
 - Example: feat(auth): ✨ add oauth2 login
 - Choose emojis only from the Type Reference table
-- Do not output Gitmoji shortcodes such as ":bug:"`
-    : '';
+- Do not output Gitmoji shortcodes such as ":bug:"`;
+  }
+
+  return '';
 }
 
-export function buildExample(language: string, includeGitmoji: boolean): string {
-  const exampleHeader = includeGitmoji
-    ? `refactor(server): ${getGitmojiForCommitType('refactor')} <subject in ${language}>`
-    : `refactor(server): <subject in ${language}>`;
-  const settingsExampleHeader = includeGitmoji
-    ? `chore(settings): ${getGitmojiForCommitType('chore')} set setting value`
-    : 'chore(settings): set setting value';
+export function buildSettingsActionExamples(gitmojiPlacement: GitmojiPlacement): string {
+  switch (gitmojiPlacement) {
+    case 'prefix':
+      return [
+        `- Good: ${getGitmojiForCommitType('chore')} chore(settings): set gitmoji prompt preset`,
+        `- Bad: ${getGitmojiForCommitType('chore')} chore(settings): add gitmoji prompt preset setting`
+      ].join('\n');
+    case 'suffix':
+      return [
+        `- Good: chore(settings): ${getGitmojiForCommitType('chore')} set gitmoji prompt preset`,
+        `- Bad: chore(settings): ${getGitmojiForCommitType('chore')} add gitmoji prompt preset setting`
+      ].join('\n');
+    default:
+      return [
+        '- Good: chore(settings): set gitmoji prompt preset',
+        '- Bad: chore(settings): add gitmoji prompt preset setting'
+      ].join('\n');
+  }
+}
+
+export function buildExample(language: string, gitmojiPlacement: GitmojiPlacement): string {
+  const exampleHeader =
+    gitmojiPlacement === 'prefix'
+      ? `${getGitmojiForCommitType('refactor')} refactor(server): <subject in ${language}>`
+      : gitmojiPlacement === 'suffix'
+        ? `refactor(server): ${getGitmojiForCommitType('refactor')} <subject in ${language}>`
+        : `refactor(server): <subject in ${language}>`;
+  const settingsExampleHeader =
+    gitmojiPlacement === 'prefix'
+      ? `${getGitmojiForCommitType('chore')} chore(settings): set setting value`
+      : gitmojiPlacement === 'suffix'
+        ? `chore(settings): ${getGitmojiForCommitType('chore')} set setting value`
+        : 'chore(settings): set setting value';
 
   return `\`\`\`
 ${exampleHeader}
@@ -90,14 +166,19 @@ ${settingsExampleHeader}
 \`\`\``;
 }
 
-export async function buildCommitPrompt(language: string, includeGitmoji: boolean): Promise<string> {
+export async function buildCommitPrompt(
+  language: string,
+  gitmojiPlacement: GitmojiPlacement
+): Promise<string> {
   const template = await getCommitPromptTemplate();
+  const includeGitmoji = gitmojiPlacement !== 'none';
   const replacements: Record<string, string> = {
     LANGUAGE: language,
-    OUTPUT_FORMAT: buildOutputFormat(includeGitmoji),
+    OUTPUT_FORMAT: buildOutputFormat(gitmojiPlacement),
     TYPE_REFERENCE: buildCommitTypeReferenceTable(includeGitmoji),
-    GITMOJI_RULES: buildGitmojiRules(includeGitmoji),
-    EXAMPLE: buildExample(language, includeGitmoji)
+    GITMOJI_RULES: buildGitmojiRules(gitmojiPlacement),
+    SETTINGS_ACTION_EXAMPLES: buildSettingsActionExamples(gitmojiPlacement),
+    EXAMPLE: buildExample(language, gitmojiPlacement)
   };
 
   return template.replace(/\{\{([A-Z_]+)\}\}/g, (match, key: string) => {
@@ -106,10 +187,13 @@ export async function buildCommitPrompt(language: string, includeGitmoji: boolea
 }
 
 function getConfiguredPromptPreset(resourceUri?: vscode.Uri): PromptPreset {
-  return ConfigurationManager.getInstance().getConfig<PromptPreset>(
-    ConfigKeys.PROMPT_PRESET,
-    DEFAULT_PROMPT_PRESET,
-    resourceUri
+  return normalizePromptPreset(
+    ConfigurationManager.getInstance().getConfig<string>(
+      ConfigKeys.PROMPT_PRESET,
+      DEFAULT_PROMPT_PRESET,
+      resourceUri
+    ),
+    DEFAULT_PROMPT_PRESET
   );
 }
 
@@ -152,7 +236,7 @@ async function resolvePromptContent(language: string, resourceUri?: vscode.Uri):
     return customPrompt;
   }
 
-  return buildCommitPrompt(language, promptPreset === 'with-gitmoji');
+  return buildCommitPrompt(language, getGitmojiPlacement(promptPreset));
 }
 
 /**

@@ -34,7 +34,7 @@ Stage changes -> optionally type a hint in the SCM input -> click CommitFlow -> 
 - Store API keys in VS Code SecretStorage.
 - Manage multiple provider profiles and switch between them quickly.
 - Override language, prompt preset, and active provider per repository.
-- Choose plain Conventional Commits or Gitmoji-enhanced output.
+- Choose plain Conventional Commits or Gitmoji prefix/suffix output.
 - Limit oversized staged diffs before they are sent to the provider.
 - Enable debug logging when troubleshooting provider requests.
 
@@ -77,7 +77,7 @@ Provider profiles store the provider type, name, model, temperature, base URL, a
 | `Switch Provider Profile` | Quickly switch the active profile |
 | `Show Available OpenAI Models` | Load and select models from an OpenAI-compatible endpoint |
 | `Set Commit Language for Current Repository` | Override commit message language for the current repository |
-| `Set Prompt Preset for Current Repository` | Override Gitmoji, plain, or custom prompt behavior |
+| `Set Prompt Preset for Current Repository` | Override Gitmoji prefix, Gitmoji suffix, plain, or custom prompt behavior |
 
 ## Settings
 
@@ -86,7 +86,7 @@ All settings use the `commitflow.` namespace.
 | Setting | Default | Description |
 | :--- | :--- | :--- |
 | `commitLanguage` | `English` | Commit message language |
-| `promptPreset` | `without-gitmoji` | `with-gitmoji`, `without-gitmoji`, or `custom` |
+| `promptPreset` | `without-gitmoji` | `gitmoji-prefix`, `gitmoji-suffix`, `without-gitmoji`, or `custom` |
 | `systemPrompt` | `""` | Full custom system prompt used when `promptPreset` is `custom` |
 | `providerProfiles` | `[]` | Saved provider profiles |
 | `activeProviderProfileId` | `""` | Active provider profile, with repository-level overrides |

@@ -2,7 +2,7 @@
   "name": "commitflow",
   "displayName": "CommitFlow",
   "description": "Turn staged Git changes into clear Conventional Commit messages with OpenAI-compatible and Gemini providers.",
-  "version": "1.0.0-alpha.1",
+  "version": "1.0.0-alpha.2",
   "engines": {
     "node": ">=24",
     "vscode": "^1.77.0"
@@ -116,12 +116,14 @@
           "scope": "resource",
           "markdownDescription": "Prompt preset for commit generation. This setting supports repository-level overrides through workspace or folder settings.",
           "enum": [
-            "with-gitmoji",
+            "gitmoji-prefix",
+            "gitmoji-suffix",
             "without-gitmoji",
             "custom"
           ],
           "enumDescriptions": [
-            "Generate emoji-prefixed Conventional Commit messages",
+            "Generate Conventional Commit messages with a Gitmoji prefix before the commit type",
+            "Generate Conventional Commit messages with a Gitmoji suffix after the colon",
             "Generate Conventional Commit messages without emojis",
             "Use commitflow.systemPrompt as the full custom system prompt"
           ]

@@ -43,22 +43,46 @@ suite('prompts', () => {
   });
 
   suite('buildOutputFormat', () => {
-    test('returns format with emoji when includeGitmoji is true', async () => {
+    test('returns format with prefix gitmoji when placement is prefix', async () => {
       const { buildOutputFormat } = await import('../../prompts');
-      const result = buildOutputFormat(true);
+      const result = buildOutputFormat('prefix');
       assert.ok(result.includes('<emoji>'));
-      assert.ok(result.includes('<type>(<scope>): <emoji> <subject>'));
+      assert.ok(result.includes('<emoji> <type>(<scope>): <subject>'));
       assert.ok(result.includes('Keep the full header under 72 characters'));
       assert.ok(!result.includes('Multiple Type Changes'));
     });
 
-    test('returns format without emoji when includeGitmoji is false', async () => {
+    test('returns format with suffix gitmoji when placement is suffix', async () => {
       const { buildOutputFormat } = await import('../../prompts');
-      const result = buildOutputFormat(false);
+      const result = buildOutputFormat('suffix');
+      assert.ok(result.includes('<emoji>'));
+      assert.ok(result.includes('<type>(<scope>): <emoji> <subject>'));
+      assert.ok(result.includes('Keep the full header under 72 characters'));
+    });
+
+    test('returns format without emoji when placement is none', async () => {
+      const { buildOutputFormat } = await import('../../prompts');
+      const result = buildOutputFormat('none');
       assert.ok(!result.includes('<emoji>'));
       assert.ok(result.includes('<type>(<scope>): <subject>'));
       assert.ok(result.includes('Keep the subject under 50 characters'));
       assert.ok(!result.includes('Multiple Type Changes'));
+    });
+  });
+
+  suite('buildGitmojiRules', () => {
+    test('returns prefix guidance when placement is prefix', async () => {
+      const { buildGitmojiRules } = await import('../../prompts');
+      const result = buildGitmojiRules('prefix');
+      assert.ok(result.includes('Prefix the emoji before the commit type'));
+      assert.ok(result.includes('✨ feat(auth): add oauth2 login'));
+    });
+
+    test('returns suffix guidance when placement is suffix', async () => {
+      const { buildGitmojiRules } = await import('../../prompts');
+      const result = buildGitmojiRules('suffix');
+      assert.ok(result.includes('Place the emoji inside the subject (after ":")'));
+      assert.ok(result.includes('feat(auth): ✨ add oauth2 login'));
     });
   });
 
@@ -92,8 +116,8 @@ suite('prompts', () => {
           'Do not use "add" in the subject for settings value changes'
         )
       );
-      assert.ok(content.includes('Good: chore(settings): 🔧 set gitmoji prompt preset'));
-      assert.ok(content.includes('Bad: chore(settings): 🔧 add gitmoji prompt preset setting'));
+      assert.ok(content.includes('Good: chore(settings): set gitmoji prompt preset'));
+      assert.ok(content.includes('Bad: chore(settings): add gitmoji prompt preset setting'));
       assert.ok(content.includes('chore(settings):'));
       assert.ok(content.includes('The staged diff is the source of truth'));
       assert.ok(content.includes('Use additional context only when it is consistent with the diff'));

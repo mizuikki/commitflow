@@ -1,14 +1,23 @@
 import * as vscode from 'vscode';
 import { CommandManager } from './commands';
-import { COMMITFLOW_NAMESPACE, ConfigKeys, ConfigurationManager, PromptPreset } from './config';
+import {
+  COMMITFLOW_NAMESPACE,
+  ConfigKeys,
+  ConfigurationManager,
+  DEFAULT_PROMPT_PRESET,
+  PromptPreset,
+  normalizePromptPreset
+} from './config';
 import { setLoggerContext } from './logger';
 
 function getPromptPresetLabel(promptPreset: PromptPreset): string {
   switch (promptPreset) {
-    case 'with-gitmoji':
-      return 'Gitmoji';
+    case 'gitmoji-prefix':
+      return 'Gitmoji Prefix';
+    case 'gitmoji-suffix':
+      return 'Gitmoji Suffix';
     case 'without-gitmoji':
-      return 'No Emoji';
+      return 'Without Gitmoji';
     case 'custom':
       return 'Custom';
   }
@@ -77,10 +86,9 @@ function createCombinedStatusBarItem(
   const refresh = async () => {
     const resourceUri = getActiveResourceUri();
     const profile = await configManager.getActiveProviderProfile(resourceUri).catch(() => undefined);
-    const promptPreset = configManager.getConfig<PromptPreset>(
-      ConfigKeys.PROMPT_PRESET,
-      'without-gitmoji',
-      resourceUri
+    const promptPreset = normalizePromptPreset(
+      configManager.getConfig<string>(ConfigKeys.PROMPT_PRESET, DEFAULT_PROMPT_PRESET, resourceUri),
+      DEFAULT_PROMPT_PRESET
     );
     const language = configManager.getConfig<string>(
       ConfigKeys.COMMIT_LANGUAGE,
@@ -114,7 +122,8 @@ function createCombinedStatusBarItem(
         },
         {
           label: 'Set Prompt Preset for Current Repository',
-          description: 'Switch between Gitmoji, No Emoji, or Custom prompt presets',
+          description:
+            'Switch between Gitmoji Prefix, Gitmoji Suffix, Without Gitmoji, or Custom presets',
           command: 'commitflow.setPromptPresetForCurrentRepository'
         }
       ],
