@@ -26,6 +26,9 @@
   "publisher": "mizuikki",
   "repository": "https://github.com/mizuikki/commitflow",
   "icon": "images/logo.png",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "contributes": {
     "commands": [
       {
