@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 import * as vscode from 'vscode';
-import { ConfigurationManager, ResolvedProviderProfile } from './config';
+import { ResolvedProviderProfile } from './config';
 import { createOpenAIClient } from './api-utils';
 import { logDebug } from './logger';
 
@@ -115,34 +115,31 @@ function sanitizeMessagesForLogging(messages: ChatCompletionMessageParam[]) {
   }));
 }
 
-export async function resolveOpenAIProfile(resourceUri?: vscode.Uri): Promise<ResolvedProviderProfile> {
-  const configManager = ConfigurationManager.getInstance();
-  const resolved = await configManager.getActiveProviderProfile(resourceUri);
-
-  if (resolved.profile.type !== 'openai-compatible') {
-    throw new Error(`Active profile "${resolved.profile.name}" is not an OpenAI-compatible profile`);
+export function createOpenAIApi(resolvedProfile: ResolvedProviderProfile): OpenAI {
+  if (
+    resolvedProfile.profile.driverKind !== 'openai' &&
+    resolvedProfile.profile.driverKind !== 'azure-openai'
+  ) {
+    throw new Error(`Provider "${resolvedProfile.profile.name}" is not OpenAI-based.`);
   }
 
-  return resolved;
+  return createOpenAIClient(resolvedProfile.profile, resolvedProfile.apiKey);
 }
 
-export async function createOpenAIApi(resourceUri?: vscode.Uri): Promise<OpenAI> {
-  const { profile, apiKey } = await resolveOpenAIProfile(resourceUri);
-  return createOpenAIClient(profile, apiKey);
-}
-
-export async function ChatGPTAPI(
+export async function OpenAIChatAPI(
   messages: ChatCompletionMessageParam[],
+  resolvedProfile: ResolvedProviderProfile,
   resourceUri?: vscode.Uri
 ) {
-  const openai = await createOpenAIApi(resourceUri);
-  const { profile } = await resolveOpenAIProfile(resourceUri);
-  const temperature = profile.temperature ?? 0.7;
+  const openai = createOpenAIApi(resolvedProfile);
+  const { profile } = resolvedProfile;
+  const temperature = profile.inference?.temperature ?? 0.7;
 
   const normalizedMessages = prepareMessagesForOpenAICompatibleAPI(messages);
   logDebug(
-    'OpenAI-compatible payload prepared',
+    'OpenAI-family payload prepared',
     {
+      providerId: profile.providerId,
       model: profile.model,
       temperature,
       messageSummary: sanitizeMessagesForLogging(normalizedMessages)

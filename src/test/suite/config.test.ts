@@ -55,4 +55,77 @@ suite('config', () => {
       assert.notStrictEqual(id1, id2);
     });
   });
+
+  suite('provider schema', () => {
+    test('normalizes nested Azure provider profiles', async () => {
+      const { normalizeProviderProfile } = await import('../../provider-types');
+      const profile = normalizeProviderProfile({
+        id: 'profile-1',
+        name: 'Azure Work',
+        providerId: 'azure-openai',
+        driverKind: 'azure-openai',
+        model: 'gpt-5.5',
+        auth: { scheme: 'api-key' },
+        connection: {
+          endpoint: 'https://example.openai.azure.com',
+          deployment: 'gpt-5.5',
+          apiVersion: '2024-10-21'
+        },
+        inference: {
+          temperature: 0.3
+        }
+      });
+
+      assert.ok(profile);
+      assert.strictEqual(profile?.providerId, 'azure-openai');
+      assert.strictEqual(profile?.connection?.endpoint, 'https://example.openai.azure.com');
+      assert.strictEqual(profile?.inference?.temperature, 0.3);
+    });
+
+    test('rejects legacy flat provider profiles', async () => {
+      const { normalizeProviderProfile } = await import('../../provider-types');
+      const profile = normalizeProviderProfile({
+        id: 'profile-1',
+        name: 'Legacy',
+        type: 'openai-compatible',
+        model: 'gpt-5.5',
+        baseURL: 'https://api.openai.com/v1',
+        azureApiVersion: '2024-10-21'
+      });
+
+      assert.strictEqual(profile, undefined);
+    });
+
+    test('validates Azure required fields separately from generic config', async () => {
+      const { validateProviderProfile } = await import('../../provider-registry');
+      const errors = validateProviderProfile({
+        id: 'profile-1',
+        name: 'Azure Broken',
+        providerId: 'azure-openai',
+        driverKind: 'azure-openai',
+        model: 'gpt-5.5',
+        auth: { scheme: 'api-key' },
+        connection: {
+          endpoint: 'https://example.openai.azure.com'
+        }
+      } as any);
+
+      assert.ok(errors.some((error: string) => error.includes('Deployment is required')));
+      assert.ok(errors.some((error: string) => error.includes('API version is required')));
+    });
+
+    test('uses current recommended OpenAI model defaults', async () => {
+      const { createDefaultProfileDraft } = await import('../../provider-registry');
+      const draft = createDefaultProfileDraft('openai');
+
+      assert.strictEqual(draft.model, 'gpt-5.5');
+    });
+
+    test('uses official DeepSeek base URL default', async () => {
+      const { createDefaultProfileDraft } = await import('../../provider-registry');
+      const draft = createDefaultProfileDraft('deepseek');
+
+      assert.strictEqual(draft.connection.baseURL, 'https://api.deepseek.com');
+    });
+  });
 });

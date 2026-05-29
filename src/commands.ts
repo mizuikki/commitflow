@@ -7,11 +7,12 @@ import {
   DEFAULT_PROMPT_PRESET,
   PromptPreset,
   ProviderProfile,
-  ProviderProfileType,
   getConfigurationTargetForResource,
   normalizePromptPreset,
   parsePromptPreset
 } from './config';
+import { getProviderLabel } from './provider-registry';
+import { ProviderManagementPanel } from './provider-panel';
 
 const COMMIT_LANGUAGE_OPTIONS = [
   { label: 'Simplified Chinese', description: '简体中文' },
@@ -68,25 +69,6 @@ interface PromptPresetQuickPickItem extends vscode.QuickPickItem {
   clearsOverride?: boolean;
 }
 
-interface ProviderProfileActionQuickPickItem extends vscode.QuickPickItem {
-  action: 'activate' | 'edit' | 'copy' | 'delete' | 'set-repo';
-}
-
-interface ProviderProfileSelectionQuickPickItem extends vscode.QuickPickItem {
-  profile?: ProviderProfile;
-  action?: 'add';
-}
-
-interface ProviderProfileForm {
-  name: string;
-  type: ProviderProfileType;
-  baseURL?: string;
-  model: string;
-  temperature?: number;
-  azureApiVersion?: string;
-  apiKey: string;
-}
-
 export function validateTemperatureInput(value: string): string | undefined {
   const trimmed = value.trim();
   if (!trimmed) {
@@ -103,6 +85,15 @@ export function validateTemperatureInput(value: string): string | undefined {
   }
 
   return undefined;
+}
+
+function getCurrentResourceUri(): vscode.Uri | undefined {
+  const activeEditorUri = vscode.window.activeTextEditor?.document.uri;
+  if (activeEditorUri) {
+    return vscode.workspace.getWorkspaceFolder(activeEditorUri)?.uri ?? activeEditorUri;
+  }
+
+  return vscode.workspace.workspaceFolders?.[0]?.uri;
 }
 
 function getRepositoryLanguageTarget(resourceUri: vscode.Uri): vscode.ConfigurationTarget {
@@ -266,194 +257,6 @@ function createRepositoryPromptPresetQuickPickItems(
   ];
 }
 
-function createProviderProfileOverviewItems(
-  profiles: ProviderProfile[],
-  activeProfileId?: string,
-  resourceProfileId?: string
-): Array<ProviderProfileSelectionQuickPickItem | ProviderProfileActionQuickPickItem> {
-  return [
-    {
-      label: 'Add profile',
-      description: 'Create a new provider profile',
-      action: 'add'
-    },
-    ...profiles.map((profile) => ({
-      label: profile.name,
-      description: profile.type === 'gemini' ? 'Gemini' : 'OpenAI-compatible',
-      detail:
-        profile.id === resourceProfileId
-          ? 'Current repository profile'
-          : profile.id === activeProfileId
-            ? 'Current active profile'
-            : profile.model,
-      profile
-    }))
-  ];
-}
-
-function createProviderProfileActionItems(
-  profile: ProviderProfile,
-  activeProfileId?: string,
-  resourceProfileId?: string
-): ProviderProfileActionQuickPickItem[] {
-  const items: ProviderProfileActionQuickPickItem[] = [
-    {
-      label: 'Activate profile',
-      description: profile.id === activeProfileId ? 'Current active profile' : 'Switch globally',
-      action: 'activate'
-    },
-    {
-      label: 'Edit profile',
-      description: 'Update settings',
-      action: 'edit'
-    },
-    {
-      label: 'Copy profile',
-      description: 'Duplicate as a new profile',
-      action: 'copy'
-    },
-    {
-      label: 'Delete profile',
-      description: 'Remove from storage',
-      action: 'delete'
-    }
-  ];
-
-  if (resourceProfileId !== profile.id) {
-    items.unshift({
-      label: 'Set for current workspace',
-      description: 'Override active profile in this repository',
-      action: 'set-repo'
-    });
-  }
-
-  return items;
-}
-
-async function promptForProviderProfileType(
-  initialType?: ProviderProfileType
-): Promise<ProviderProfileType | undefined> {
-  const selected = await vscode.window.showQuickPick(
-    [
-      {
-        label: 'OpenAI-compatible',
-        description: 'OpenAI / Azure OpenAI / DeepSeek / other compatible endpoints',
-        type: 'openai-compatible' as const
-      },
-      {
-        label: 'Gemini',
-        description: 'Google Gemini models',
-        type: 'gemini' as const
-      }
-    ],
-    {
-      placeHolder: 'Select a provider type',
-      canPickMany: false
-    }
-  );
-
-  if (!selected) {
-    return undefined;
-  }
-
-  return selected.type ?? initialType;
-}
-
-async function promptForProviderProfileDetails(
-  initialProfile?: Partial<ProviderProfile> & { apiKey?: string }
-): Promise<ProviderProfileForm | undefined> {
-  const type = await promptForProviderProfileType(initialProfile?.type);
-  if (!type) {
-    return undefined;
-  }
-
-  const name = await vscode.window.showInputBox({
-    title: 'Provider profile name',
-    value: initialProfile?.name ?? '',
-    prompt: 'Enter a display name for this provider profile',
-    ignoreFocusOut: true
-  });
-  if (!name) {
-    return undefined;
-  }
-
-  const model = await vscode.window.showInputBox({
-    title: 'Model',
-    value: initialProfile?.model ?? '',
-    prompt: 'Enter the model name to use',
-    ignoreFocusOut: true
-  });
-  if (!model) {
-    return undefined;
-  }
-
-  const temperatureInput = await vscode.window.showInputBox({
-    title: 'Temperature',
-    value: initialProfile?.temperature?.toString() ?? '0.7',
-    prompt: 'Enter a value between 0 and 2',
-    ignoreFocusOut: true,
-    validateInput: validateTemperatureInput
-  });
-  if (temperatureInput === undefined) {
-    return undefined;
-  }
-
-  const baseURL =
-    type === 'openai-compatible'
-      ? await vscode.window.showInputBox({
-          title: 'Base URL',
-          value: initialProfile?.baseURL ?? '',
-          prompt: 'Enter the API base URL, or leave blank for the default endpoint',
-          ignoreFocusOut: true
-        })
-      : undefined;
-
-  if (type === 'openai-compatible' && baseURL === undefined) {
-    return undefined;
-  }
-
-  const azureApiVersion =
-    type === 'openai-compatible'
-      ? await vscode.window.showInputBox({
-          title: 'Azure API Version',
-          value: initialProfile?.azureApiVersion ?? '',
-          prompt: 'Enter the Azure API version, or leave blank if not needed',
-          ignoreFocusOut: true
-        })
-      : undefined;
-
-  if (type === 'openai-compatible' && azureApiVersion === undefined) {
-    return undefined;
-  }
-
-  const apiKey = await vscode.window.showInputBox({
-    title: 'API Key',
-    value: '',
-    prompt: initialProfile?.apiKey
-      ? 'Enter a new API key, or leave blank to keep the current one'
-      : 'Enter the API key for this provider profile',
-    password: true,
-    ignoreFocusOut: true
-  });
-
-  const resolvedApiKey = apiKey && apiKey.trim().length > 0 ? apiKey : initialProfile?.apiKey ?? '';
-  if (!resolvedApiKey) {
-    return undefined;
-  }
-
-  const temperature = Number(temperatureInput);
-
-  return {
-    name,
-    type,
-    baseURL: baseURL?.trim() || undefined,
-    model,
-    temperature: Number.isFinite(temperature) ? temperature : undefined,
-    azureApiVersion: azureApiVersion?.trim() || undefined,
-    apiKey: resolvedApiKey
-  };
-}
-
 async function setCommitLanguageForCurrentRepository(arg?: any): Promise<void> {
   const repo = await getRepo(arg);
   const resourceUri = repo.rootUri;
@@ -499,7 +302,6 @@ async function setCommitLanguageForCurrentRepository(arg?: any): Promise<void> {
     resourceUri
   );
   await vscode.commands.executeCommand('commitflow.refreshStatusBar');
-
   vscode.window.showInformationMessage(
     `CommitFlow language for this repository set to ${selection.language}.`
   );
@@ -552,253 +354,70 @@ async function setPromptPresetForCurrentRepository(arg?: any): Promise<void> {
     resourceUri
   );
   await vscode.commands.executeCommand('commitflow.refreshStatusBar');
-
   vscode.window.showInformationMessage(
     `CommitFlow prompt preset for this repository set to ${selection.label}.`
   );
 }
 
-async function createProviderProfile(): Promise<void> {
-  const configManager = ConfigurationManager.getInstance();
-  const form = await promptForProviderProfileDetails();
-  if (!form) {
-    return;
-  }
-
-  const profile = await configManager.upsertProviderProfile(
-    {
-      name: form.name,
-      type: form.type,
-      baseURL: form.baseURL,
-      model: form.model,
-      temperature: form.temperature,
-      azureApiVersion: form.azureApiVersion
-    },
-    form.apiKey
-  );
-
-  await configManager.setActiveProviderProfileId(profile.id, vscode.ConfigurationTarget.Global);
-  await vscode.commands.executeCommand('commitflow.refreshStatusBar');
-  vscode.window.showInformationMessage(`Provider profile "${profile.name}" created.`);
-}
-
-async function editProviderProfile(profile: ProviderProfile): Promise<void> {
-  const configManager = ConfigurationManager.getInstance();
-  const currentApiKey = await configManager.getProviderProfileApiKey(profile.id);
-  const form = await promptForProviderProfileDetails({
-    ...profile,
-    apiKey: currentApiKey
-  });
-
-  if (!form) {
-    return;
-  }
-
-  const updatedProfile = await configManager.upsertProviderProfile(
-    {
-      id: profile.id,
-      name: form.name,
-      type: form.type,
-      baseURL: form.baseURL,
-      model: form.model,
-      temperature: form.temperature,
-      azureApiVersion: form.azureApiVersion
-    },
-    form.apiKey,
-    profile.id
-  );
-
-  vscode.window.showInformationMessage(`Provider profile "${updatedProfile.name}" updated.`);
-  await vscode.commands.executeCommand('commitflow.refreshStatusBar');
-}
-
-async function copyProviderProfile(profile: ProviderProfile): Promise<void> {
-  const configManager = ConfigurationManager.getInstance();
-  const currentApiKey = await configManager.getProviderProfileApiKey(profile.id);
-  const form = await promptForProviderProfileDetails({
-    ...profile,
-    name: `${profile.name} Copy`,
-    apiKey: currentApiKey
-  });
-
-  if (!form) {
-    return;
-  }
-
-  const copiedProfile = await configManager.upsertProviderProfile(
-    {
-      name: form.name,
-      type: form.type,
-      baseURL: form.baseURL,
-      model: form.model,
-      temperature: form.temperature,
-      azureApiVersion: form.azureApiVersion
-    },
-    form.apiKey
-  );
-
-  await configManager.setActiveProviderProfileId(
-    copiedProfile.id,
-    vscode.ConfigurationTarget.Global
-  );
-  await vscode.commands.executeCommand('commitflow.refreshStatusBar');
-  vscode.window.showInformationMessage(`Provider profile "${copiedProfile.name}" copied.`);
-}
-
-async function deleteProviderProfile(profile: ProviderProfile): Promise<void> {
-  const configManager = ConfigurationManager.getInstance();
-  const confirmed = await vscode.window.showWarningMessage(
-    `Delete provider profile "${profile.name}"?`,
-    { modal: true },
-    'Delete',
-    'Cancel'
-  );
-
-  if (confirmed === 'Delete') {
-    await configManager.deleteProviderProfile(profile.id);
-    await vscode.commands.executeCommand('commitflow.refreshStatusBar');
-    vscode.window.showInformationMessage(`Provider profile "${profile.name}" deleted.`);
-  }
-}
-
-async function activateProviderProfile(
-  profile: ProviderProfile,
-  resourceUri?: vscode.Uri
+async function manageProviderProfiles(
+  context: vscode.ExtensionContext,
+  options: { selectedProfileId?: string; preloadModelsForProfileId?: string } = {}
 ): Promise<void> {
-  const configManager = ConfigurationManager.getInstance();
-  const target = resourceUri
-    ? getConfigurationTargetForResource(resourceUri)
-    : vscode.ConfigurationTarget.Global;
-
-  await configManager.setActiveProviderProfileId(profile.id, target, resourceUri);
-  await vscode.commands.executeCommand('commitflow.refreshStatusBar');
-  vscode.window.showInformationMessage(`Active provider profile set to "${profile.name}".`);
+  ProviderManagementPanel.createOrShow(context, {
+    resourceUri: getCurrentResourceUri(),
+    selectedProfileId: options.selectedProfileId,
+    preloadModelsForProfileId: options.preloadModelsForProfileId
+  });
 }
 
-async function setProviderProfileForCurrentWorkspace(
-  profile: ProviderProfile,
-  resourceUri?: vscode.Uri
-): Promise<void> {
+async function switchProviderProfile(): Promise<void> {
   const configManager = ConfigurationManager.getInstance();
-  const targetUri = resourceUri ?? (await getRepo(undefined)).rootUri;
-  const target = getConfigurationTargetForResource(targetUri);
-
-  await configManager.setActiveProviderProfileId(profile.id, target, targetUri);
-  await vscode.commands.executeCommand('commitflow.refreshStatusBar');
-  vscode.window.showInformationMessage(
-    `Repository profile set to "${profile.name}" for ${targetUri.fsPath}.`
-  );
-}
-
-async function manageProviderProfiles(resourceUri?: vscode.Uri): Promise<void> {
-  const configManager = ConfigurationManager.getInstance();
+  const resourceUri = getCurrentResourceUri();
   const profiles = configManager.getProviderProfiles();
   const activeProfileId = configManager.getActiveProviderProfileId(resourceUri);
-  const repositoryProfileId = configManager.getConfig<string>(
-    ConfigKeys.ACTIVE_PROVIDER_PROFILE_ID,
-    undefined,
-    resourceUri
-  );
-
-  const overview = await vscode.window.showQuickPick(
-    createProviderProfileOverviewItems(profiles, activeProfileId, repositoryProfileId),
-    {
-      placeHolder: profiles.length
-        ? 'Select a provider profile to manage'
-        : 'No provider profiles yet. Create one to get started.'
-    }
-  );
-
-  if (!overview) {
-    return;
-  }
-
-  if ('action' in overview && overview.action === 'add') {
-    await createProviderProfile();
-    return;
-  }
-
-  const selectedProfile = 'profile' in overview ? overview.profile : undefined;
-  if (!selectedProfile) {
-    return;
-  }
-
-  const action = await vscode.window.showQuickPick(
-    createProviderProfileActionItems(selectedProfile, activeProfileId, repositoryProfileId),
-    {
-      placeHolder: `Manage "${selectedProfile.name}"`
-    }
-  );
-
-  if (!action) {
-    return;
-  }
-
-  switch (action.action) {
-    case 'activate':
-      await activateProviderProfile(selectedProfile, resourceUri);
-      return;
-    case 'edit':
-      await editProviderProfile(selectedProfile);
-      return;
-    case 'copy':
-      await copyProviderProfile(selectedProfile);
-      return;
-    case 'delete':
-      await deleteProviderProfile(selectedProfile);
-      return;
-    case 'set-repo':
-      await setProviderProfileForCurrentWorkspace(selectedProfile, resourceUri);
-      return;
-  }
-}
-
-async function showAvailableModelsForProfile(): Promise<void> {
-  const configManager = ConfigurationManager.getInstance();
-  const activeProfileId = configManager.getActiveProviderProfileId();
-  const profiles = configManager
-    .getProviderProfiles()
-    .filter((profile) => profile.type === 'openai-compatible');
 
   if (!profiles.length) {
-    throw new Error('No OpenAI-compatible provider profiles are configured');
+    throw new Error('No provider profiles are configured.');
   }
 
-  const selectedProfile = await vscode.window.showQuickPick(
+  const selection = await vscode.window.showQuickPick(
     profiles.map((profile) => ({
       label: profile.name,
-      description: profile.id === activeProfileId ? `Current active profile • ${profile.model}` : profile.model,
-      detail: profile.baseURL ?? 'Default OpenAI endpoint',
+      description:
+        profile.id === activeProfileId
+          ? `Current active profile • ${getProviderLabel(profile.providerId)}`
+          : getProviderLabel(profile.providerId),
+      detail: profile.model,
       profile
     })),
     {
-      placeHolder: 'Select a provider profile to load models'
+      placeHolder: 'Select the active provider profile'
     }
   );
 
-  if (!selectedProfile) {
+  if (!selection) {
     return;
   }
 
-  const models = await configManager.getAvailableOpenAIModelsForProfile(
-    selectedProfile.profile.id
-  );
-  const selectedModel = await vscode.window.showQuickPick(models, {
-    placeHolder: `Select a model for "${selectedProfile.profile.name}"`
-  });
-
-  if (!selectedModel) {
-    return;
-  }
-
-  const updatedProfiles = configManager.getProviderProfiles().map((item) =>
-    item.id === selectedProfile.profile.id ? { ...item, model: selectedModel } : item
-  );
-
-  await configManager.saveProviderProfiles(updatedProfiles);
+  const target = resourceUri
+    ? getConfigurationTargetForResource(resourceUri)
+    : vscode.ConfigurationTarget.Global;
+  await configManager.setActiveProviderProfileId(selection.profile.id, target, resourceUri);
+  await vscode.commands.executeCommand('commitflow.refreshStatusBar');
   vscode.window.showInformationMessage(
-    `Model for "${selectedProfile.profile.name}" set to ${selectedModel}.`
+    `Active provider profile set to "${selection.profile.name}".`
   );
+}
+
+async function showAvailableModelsForProfile(context: vscode.ExtensionContext): Promise<void> {
+  const configManager = ConfigurationManager.getInstance();
+  const resourceUri = getCurrentResourceUri();
+  const resolved = await configManager.getActiveProviderProfile(resourceUri);
+
+  await manageProviderProfiles(context, {
+    selectedProfileId: resolved.profile.id,
+    preloadModelsForProfileId: resolved.profile.id
+  });
 }
 
 export class CommandManager {
@@ -819,12 +438,13 @@ export class CommandManager {
     this.registerCommand('commitflow.openSettings', () =>
       vscode.commands.executeCommand('workbench.action.openSettings', COMMITFLOW_NAMESPACE)
     );
-    this.registerCommand('commitflow.manageProviderProfiles', manageProviderProfiles);
-    this.registerCommand('commitflow.switchProviderProfile', async () => {
-      await manageProviderProfiles();
-    });
-
-    this.registerCommand('commitflow.showAvailableModels', showAvailableModelsForProfile);
+    this.registerCommand('commitflow.manageProviderProfiles', () =>
+      manageProviderProfiles(this.context)
+    );
+    this.registerCommand('commitflow.switchProviderProfile', switchProviderProfile);
+    this.registerCommand('commitflow.showAvailableModels', () =>
+      showAvailableModelsForProfile(this.context)
+    );
   }
 
   private registerCommand(command: string, handler: (...args: any[]) => any) {

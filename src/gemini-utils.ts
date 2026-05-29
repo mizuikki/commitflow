@@ -1,7 +1,7 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 import * as vscode from 'vscode';
-import { ConfigurationManager } from './config';
+import { ResolvedProviderProfile } from './config';
 
 function extractMessageContent(message: ChatCompletionMessageParam | { content?: unknown }): string {
   const content = message.content;
@@ -19,48 +19,54 @@ function extractMessageContent(message: ChatCompletionMessageParam | { content?:
   return '';
 }
 
-async function getGeminiProfile(resourceUri?: vscode.Uri) {
-  const configManager = ConfigurationManager.getInstance();
-  const resolved = await configManager.getActiveProviderProfile(resourceUri);
-
-  if (resolved.profile.type !== 'gemini') {
-    throw new Error(`Active profile "${resolved.profile.name}" is not a Gemini profile`);
+export function createGeminiAPIClient(resolvedProfile: ResolvedProviderProfile) {
+  if (resolvedProfile.profile.driverKind !== 'gemini') {
+    throw new Error(`Provider "${resolvedProfile.profile.name}" is not a Gemini profile`);
   }
 
-  return resolved;
-}
+  if (!resolvedProfile.apiKey) {
+    throw new Error(`API key is missing for provider profile: ${resolvedProfile.profile.name}`);
+  }
 
-export async function createGeminiAPIClient(resourceUri?: vscode.Uri) {
-  const { apiKey } = await getGeminiProfile(resourceUri);
-  return new GoogleGenerativeAI(apiKey);
+  return new GoogleGenAI({
+    apiKey: resolvedProfile.apiKey,
+    httpOptions: resolvedProfile.profile.connection?.baseURL
+      ? {
+          baseUrl: resolvedProfile.profile.connection.baseURL
+        }
+      : undefined
+  });
 }
 
 export async function GeminiAPI(
   messages: ChatCompletionMessageParam[],
+  resolvedProfile: ResolvedProviderProfile,
   resourceUri?: vscode.Uri
 ) {
   try {
-    const gemini = await createGeminiAPIClient(resourceUri);
-    const { profile } = await getGeminiProfile(resourceUri);
-    const temperature = profile.temperature ?? 0.7;
+    const ai = createGeminiAPIClient(resolvedProfile);
+    const { profile } = resolvedProfile;
+    const temperature = profile.inference?.temperature ?? 0.7;
 
-    const systemMessages = messages.filter(m => m.role === 'system');
-    const nonSystemMessages = messages.filter(m => m.role !== 'system');
+    const systemInstruction = messages
+      .filter((message) => message.role === 'system')
+      .map((message) => extractMessageContent(message))
+      .join('\n');
+    const userContent = messages
+      .filter((message) => message.role !== 'system')
+      .map((message) => extractMessageContent(message))
+      .join('\n\n');
 
-    const model = gemini.getGenerativeModel({
+    const response = await ai.models.generateContent({
       model: profile.model,
-      systemInstruction: systemMessages.map(m => extractMessageContent(m)).join('\n'),
-    });
-
-    const chat = model.startChat({
-      generationConfig: {
+      contents: userContent,
+      config: {
+        systemInstruction: systemInstruction || undefined,
         temperature
       }
     });
 
-    const userContent = nonSystemMessages.map(m => extractMessageContent(m)).join('\n\n');
-    const result = await chat.sendMessage(userContent);
-    return result.response.text();
+    return response.text;
   } catch (error) {
     if (error instanceof Error) {
       const msg = error.message;

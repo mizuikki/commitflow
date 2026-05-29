@@ -2,10 +2,11 @@ import * as fs from 'fs-extra';
 import * as vscode from 'vscode';
 import { ConfigKeys, ConfigurationManager } from './config';
 import { getDiffStaged, GitExtensionRepository } from './git-utils';
-import { ChatGPTAPI } from './openai-utils';
+import { OpenAIChatAPI } from './openai-utils';
 import { getMainCommitPrompt } from './prompts';
 import { ProgressHandler } from './utils';
 import { GeminiAPI } from './gemini-utils';
+import { AnthropicAPI } from './anthropic-utils';
 import { logDebug } from './logger';
 
 type HttpErrorLike = {
@@ -15,14 +16,14 @@ type HttpErrorLike = {
   message?: string;
 };
 
-export function formatProviderErrorMessage(error: unknown, providerType: string): string {
+export function formatProviderErrorMessage(error: unknown, driverKind: string): string {
   const e = error as HttpErrorLike | undefined;
   const status = e?.status ?? e?.response?.status;
   const apiMessage = e?.error?.message || e?.message;
 
   const defaultMessage = apiMessage || 'An unexpected error occurred';
 
-  if (providerType !== 'openai-compatible') {
+  if (driverKind === 'gemini') {
     return defaultMessage;
   }
 
@@ -49,6 +50,24 @@ export function formatProviderErrorMessage(error: unknown, providerType: string)
       return 'Service is temporarily unavailable';
     default:
       return defaultMessage;
+  }
+}
+
+async function generateWithProvider(
+  resolvedProfile: Awaited<ReturnType<ConfigurationManager['getActiveProviderProfile']>>,
+  messages: any[],
+  resourceUri: vscode.Uri
+) {
+  switch (resolvedProfile.profile.driverKind) {
+    case 'gemini':
+      return GeminiAPI(messages, resolvedProfile, resourceUri);
+    case 'anthropic':
+      return AnthropicAPI(messages, resolvedProfile, resourceUri);
+    case 'openai':
+    case 'azure-openai':
+      return OpenAIChatAPI(messages, resolvedProfile, resourceUri);
+    default:
+      throw new Error(`Unsupported provider driver: ${resolvedProfile.profile.driverKind}`);
   }
 }
 
@@ -158,18 +177,21 @@ export async function generateCommitMsg(arg?: GenerateCommitMsgArg) {
       logDebug(
         'Commit generation context',
         {
-          providerType: resolvedProfile.profile.type,
+          providerId: resolvedProfile.profile.providerId,
+          driverKind: resolvedProfile.profile.driverKind,
           profileName: resolvedProfile.profile.name,
           model: resolvedProfile.profile.model,
-          baseURL: resolvedProfile.profile.baseURL
+          baseURL: resolvedProfile.profile.connection?.baseURL
             ? (() => {
                 try {
-                  return new URL(resolvedProfile.profile.baseURL).origin;
+                  return new URL(resolvedProfile.profile.connection.baseURL).origin;
                 } catch {
-                  return resolvedProfile.profile.baseURL;
+                  return resolvedProfile.profile.connection?.baseURL;
                 }
               })()
             : undefined,
+          endpoint: resolvedProfile.profile.connection?.endpoint,
+          deployment: resolvedProfile.profile.connection?.deployment,
           hasAdditionalContext: Boolean(additionalContext)
         },
         repo.rootUri
@@ -197,14 +219,11 @@ export async function generateCommitMsg(arg?: GenerateCommitMsgArg) {
           : 'Generating commit message...'
       });
       try {
-        let commitMessage: string | undefined;
-
-        if (resolvedProfile.profile.type === 'gemini') {
-          commitMessage = await GeminiAPI(messages as any[], repo.rootUri);
-        } else {
-          commitMessage = (await ChatGPTAPI(messages as any[], repo.rootUri)) ?? undefined;
-        }
-
+        const commitMessage = (await generateWithProvider(
+          resolvedProfile,
+          messages as any[],
+          repo.rootUri
+        )) ?? undefined;
 
         if (commitMessage) {
           logDebug(
@@ -217,7 +236,10 @@ export async function generateCommitMsg(arg?: GenerateCommitMsgArg) {
           throw new Error('Failed to generate commit message');
         }
       } catch (err) {
-        const errorMessage = formatProviderErrorMessage(err, resolvedProfile.profile.type);
+        const errorMessage = formatProviderErrorMessage(
+          err,
+          resolvedProfile.profile.driverKind
+        );
         logDebug(
           'Provider request failed',
           { message: errorMessage },

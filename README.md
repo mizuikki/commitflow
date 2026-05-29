@@ -29,8 +29,7 @@ Stage changes -> optionally type a hint in the SCM input -> click CommitFlow -> 
 ## Features
 
 - Generate Conventional Commit messages from staged Git diffs.
-- Use OpenAI-compatible providers, including OpenAI, Azure OpenAI, DeepSeek, and compatible gateways.
-- Use Google Gemini providers.
+- Use OpenAI, Azure OpenAI, Anthropic, Gemini, and compatible providers such as DeepSeek, OpenRouter, Groq, Ollama, and LM Studio.
 - Store API keys in VS Code SecretStorage.
 - Manage multiple provider profiles and switch between them quickly.
 - Override language, prompt preset, and active provider per repository.
@@ -51,7 +50,7 @@ CommitFlow is distributed as a VSIX package through GitHub Releases. It is not p
 
 1. Install and enable CommitFlow.
 2. Run `Manage Provider Profiles`.
-3. Create a provider profile with a model and API key.
+3. Create a provider profile with a model and API key from the provider catalog panel.
 4. Stage the files you want to commit.
 5. Optionally type extra context in the Source Control message box.
 6. Click `CommitFlow` in the Source Control title bar.
@@ -59,23 +58,28 @@ CommitFlow is distributed as a VSIX package through GitHub Releases. It is not p
 
 ## Providers
 
-CommitFlow supports two provider types:
+CommitFlow supports concrete provider presets backed by a few runtime drivers:
 
-| Provider Type | Use For |
+| Provider | Use For |
 | :--- | :--- |
-| `OpenAI-compatible` | OpenAI, Azure OpenAI, DeepSeek, or compatible chat-completions APIs |
+| `OpenAI` | Official OpenAI API |
+| `Azure OpenAI` | Azure-hosted OpenAI deployments with dedicated endpoint, deployment, and API version fields |
+| `Anthropic` | Claude via Anthropic API |
 | `Gemini` | Google Gemini models |
+| `DeepSeek`, `OpenRouter`, `Groq` | Hosted OpenAI-compatible providers with preset base URLs |
+| `Ollama`, `LM Studio` | Local OpenAI-compatible endpoints |
+| `Custom OpenAI-compatible` | Any compatible endpoint with a custom base URL |
 
-Provider profiles store the provider type, name, model, temperature, base URL, and Azure API version. API keys are stored separately in VS Code SecretStorage.
+Provider profiles store provider identity, runtime driver, auth scheme, connection settings, and inference settings separately. Azure API version is no longer mixed into generic provider config. API keys are stored separately in VS Code SecretStorage.
 
 ## Commands
 
 | Command | Description |
 | :--- | :--- |
 | `CommitFlow` | Generate a commit message from staged changes |
-| `Manage Provider Profiles` | Create, edit, copy, delete, activate, or set repository-specific profiles |
+| `Manage Provider Profiles` | Open the provider management panel to create, edit, copy, delete, test, activate, or set repository-specific profiles |
 | `Switch Provider Profile` | Quickly switch the active profile |
-| `Show Available OpenAI Models` | Load and select models from an OpenAI-compatible endpoint |
+| `Show Available Provider Models` | Open the provider panel and load models for the active profile when supported |
 | `Set Commit Language for Current Repository` | Override commit message language for the current repository |
 | `Set Prompt Preset for Current Repository` | Override Gitmoji prefix, Gitmoji suffix, plain, or custom prompt behavior |
 
@@ -88,7 +92,7 @@ All settings use the `commitflow.` namespace.
 | `commitLanguage` | `English` | Commit message language |
 | `promptPreset` | `without-gitmoji` | `gitmoji-prefix`, `gitmoji-suffix`, `without-gitmoji`, or `custom` |
 | `systemPrompt` | `""` | Full custom system prompt used when `promptPreset` is `custom` |
-| `providerProfiles` | `[]` | Saved provider profiles |
+| `providerProfiles` | `[]` | Saved provider profiles using the CommitFlow v2 provider schema |
 | `activeProviderProfileId` | `""` | Active provider profile, with repository-level overrides |
 | `debugLogging` | `false` | Write troubleshooting logs to the CommitFlow output channel |
 | `maxDiffChars` | `200000` | Maximum staged diff length sent to the provider |

@@ -1,9 +1,25 @@
 import { randomUUID } from 'crypto';
-import OpenAI from 'openai';
 import * as vscode from 'vscode';
-import { createOpenAIClient } from './api-utils';
+import { createClientForModelListing } from './api-utils';
+import { logDebug } from './logger';
+import { supportsModelListing, validateProviderProfile } from './provider-registry';
+import {
+  ProviderProfile,
+  ProviderProfileInput,
+  ResolvedProviderProfile,
+  normalizeProviderProfile
+} from './provider-types';
+export type {
+  AuthScheme,
+  DriverKind,
+  ProviderConnectionConfig,
+  ProviderId,
+  ProviderInferenceConfig,
+  ProviderProfile,
+  ProviderProfileInput,
+  ResolvedProviderProfile
+} from './provider-types';
 
-export type ProviderProfileType = 'openai-compatible' | 'gemini';
 export type PromptPreset =
   | 'gitmoji-prefix'
   | 'gitmoji-suffix'
@@ -12,26 +28,12 @@ export type PromptPreset =
 type LegacyPromptPreset = 'with-gitmoji';
 type ConfiguredPromptPreset = PromptPreset | LegacyPromptPreset;
 
-export interface ProviderProfile {
-  id: string;
-  name: string;
-  type: ProviderProfileType;
-  baseURL?: string;
-  model: string;
-  temperature?: number;
-  azureApiVersion?: string;
-}
-
-export interface ResolvedProviderProfile {
-  profile: ProviderProfile;
-  apiKey: string;
-}
-
 export const COMMITFLOW_NAMESPACE = 'commitflow';
 const LEGACY_AI_COMMIT_NAMESPACE = 'ai-commit-plus';
-const AVAILABLE_OPENAI_MODELS_KEY = 'availableOpenAIModels';
+const AVAILABLE_MODELS_KEY = 'availableProviderModels';
 const LEGACY_CONFIG_MIGRATION_KEY = 'legacyAiCommitPlusConfigMigrated';
 const PROMPT_PRESET_VALUE_MIGRATION_KEY = 'promptPresetValueMigrated';
+const PROVIDER_SCHEMA_WARNING_KEY = 'providerProfilesV2WarningShown';
 const PROFILE_API_KEY_PREFIX = 'providerProfiles.apiKey:';
 export const DEFAULT_PROMPT_PRESET: PromptPreset = 'without-gitmoji';
 
@@ -45,11 +47,10 @@ export enum ConfigKeys {
   MAX_DIFF_CHARS = 'maxDiffChars',
 }
 
-const LEGACY_CONFIG_KEY_MAP: Record<ConfigKeys, string> = {
+const LEGACY_CONFIG_KEY_MAP: Partial<Record<ConfigKeys, string>> = {
   [ConfigKeys.COMMIT_LANGUAGE]: 'AI_COMMIT_LANGUAGE',
   [ConfigKeys.PROMPT_PRESET]: 'PROMPT_PRESET',
   [ConfigKeys.SYSTEM_PROMPT]: 'AI_COMMIT_SYSTEM_PROMPT',
-  [ConfigKeys.PROVIDER_PROFILES]: 'PROVIDER_PROFILES',
   [ConfigKeys.ACTIVE_PROVIDER_PROFILE_ID]: 'ACTIVE_PROVIDER_PROFILE_ID',
   [ConfigKeys.DEBUG_LOGGING]: 'DEBUG_LOGGING',
   [ConfigKeys.MAX_DIFF_CHARS]: 'MAX_DIFF_CHARS'
@@ -151,8 +152,8 @@ export class ConfigurationManager {
       if (
         event.affectsConfiguration(`${COMMITFLOW_NAMESPACE}.${ConfigKeys.PROVIDER_PROFILES}`)
       ) {
-        this.updateOpenAIModelList().catch((error) => {
-          console.error('Failed to refresh OpenAI model cache:', error);
+        this.updateModelList().catch((error) => {
+          console.error('Failed to refresh provider model cache:', error);
         });
       }
     });
@@ -169,6 +170,7 @@ export class ConfigurationManager {
     this.initialization = Promise.resolve();
     await this.migrateLegacyConfiguration();
     await this.migratePromptPresetValues();
+    await this.warnAboutLegacyProviderProfiles();
     await this.ensureActiveProfileExists();
   }
 
@@ -206,10 +208,9 @@ export class ConfigurationManager {
         currentConfig.inspect(currentKey),
         target
       );
-      const legacyValue = getInspectedValueForTarget(
-        legacyConfig.inspect(legacyKey),
-        target
-      );
+      const legacyValue = legacyKey
+        ? getInspectedValueForTarget(legacyConfig.inspect(legacyKey), target)
+        : undefined;
 
       if (currentValue === undefined && legacyValue !== undefined) {
         await currentConfig.update(currentKey, legacyValue, target);
@@ -293,7 +294,16 @@ export class ConfigurationManager {
   }
 
   getProviderProfiles(): ProviderProfile[] {
-    return this.getConfig<ProviderProfile[]>(ConfigKeys.PROVIDER_PROFILES, []);
+    const rawProfiles = this.getConfig<unknown[]>(ConfigKeys.PROVIDER_PROFILES, []);
+    return rawProfiles
+      .map((item) => normalizeProviderProfile(item))
+      .filter((item): item is ProviderProfile => {
+        if (!item) {
+          return false;
+        }
+
+        return validateProviderProfile(item).length === 0;
+      });
   }
 
   async saveProviderProfiles(profiles: ProviderProfile[]): Promise<void> {
@@ -352,9 +362,11 @@ export class ConfigurationManager {
       throw new Error('No provider profile is configured');
     }
 
-    const apiKey = await this.getProviderProfileApiKey(profile.id);
+    const apiKey = profile.auth.scheme === 'none'
+      ? undefined
+      : await this.getProviderProfileApiKey(profile.id);
 
-    if (!apiKey) {
+    if (profile.auth.scheme !== 'none' && !apiKey) {
       throw new Error(`API key is missing for provider profile: ${profile.name}`);
     }
 
@@ -362,8 +374,8 @@ export class ConfigurationManager {
   }
 
   async upsertProviderProfile(
-    profile: Omit<ProviderProfile, 'id'> & { id?: string },
-    apiKey: string,
+    profile: ProviderProfileInput,
+    apiKey?: string,
     existingProfileId?: string
   ): Promise<ProviderProfile> {
     const profiles = this.getProviderProfiles();
@@ -371,12 +383,18 @@ export class ConfigurationManager {
     const nextProfile: ProviderProfile = {
       id: profileId,
       name: profile.name,
-      type: profile.type,
-      baseURL: profile.baseURL,
+      providerId: profile.providerId,
+      driverKind: profile.driverKind,
       model: profile.model,
-      temperature: profile.temperature,
-      azureApiVersion: profile.azureApiVersion
+      auth: profile.auth,
+      connection: profile.connection,
+      inference: profile.inference
     };
+
+    const validationErrors = validateProviderProfile(nextProfile);
+    if (validationErrors.length) {
+      throw new Error(validationErrors[0]);
+    }
 
     const nextProfiles = profiles.some((item) => item.id === profileId)
       ? profiles.map((item) => (item.id === profileId ? nextProfile : item))
@@ -384,8 +402,13 @@ export class ConfigurationManager {
 
     await this.saveProviderProfiles(nextProfiles);
 
-    if (normalizeString(apiKey)) {
-      await this.setProviderProfileApiKey(profileId, apiKey);
+    if (nextProfile.auth.scheme === 'none') {
+      await this.deleteProviderProfileApiKey(profileId);
+    } else {
+      const normalizedApiKey = normalizeString(apiKey);
+      if (normalizedApiKey) {
+        await this.setProviderProfileApiKey(profileId, normalizedApiKey);
+      }
     }
 
     return nextProfile;
@@ -410,6 +433,7 @@ export class ConfigurationManager {
   async ensureActiveProfileExists(): Promise<void> {
     const profiles = this.getProviderProfiles();
     const activeProfileId = this.getActiveProviderProfileId();
+    const workspaceProfileId = this.getActiveProviderProfileId(vscode.window.activeTextEditor?.document.uri);
 
     if (!profiles.length) {
       return;
@@ -421,14 +445,22 @@ export class ConfigurationManager {
         vscode.ConfigurationTarget.Global
       );
     }
+
+    if (workspaceProfileId && !profiles.some((profile) => profile.id === workspaceProfileId)) {
+      await this.setActiveProviderProfileId(
+        undefined,
+        getConfigurationTargetForResource(vscode.window.activeTextEditor?.document.uri),
+        vscode.window.activeTextEditor?.document.uri
+      );
+    }
   }
 
-  async getAvailableOpenAIModels(resourceUri?: vscode.Uri): Promise<string[]> {
+  async getAvailableModels(resourceUri?: vscode.Uri): Promise<string[]> {
     const { profile } = await this.getActiveProviderProfile(resourceUri);
-    return this.getAvailableOpenAIModelsForProfile(profile.id, resourceUri);
+    return this.getAvailableModelsForProfile(profile.id, resourceUri);
   }
 
-  async getAvailableOpenAIModelsForProfile(
+  async getAvailableModelsForProfile(
     profileId: string,
     resourceUri?: vscode.Uri
   ): Promise<string[]> {
@@ -437,40 +469,43 @@ export class ConfigurationManager {
       throw new Error(`Provider profile not found: ${profileId}`);
     }
 
-    if (profile.type !== 'openai-compatible') {
-      throw new Error(`Profile "${profile.name}" does not support OpenAI model listing`);
+    if (!supportsModelListing(profile)) {
+      throw new Error(`Profile "${profile.name}" does not support model listing`);
     }
 
-    const cacheKey = `${AVAILABLE_OPENAI_MODELS_KEY}:${profile.id}`;
+    const cacheKey = `${AVAILABLE_MODELS_KEY}:${profile.id}`;
     const cachedModels = this.context.globalState.get<string[]>(cacheKey);
     if (cachedModels?.length) {
       return cachedModels;
     }
 
-    await this.updateOpenAIModelList(profile, resourceUri);
+    await this.updateModelList(profile, resourceUri);
     return this.context.globalState.get<string[]>(cacheKey, []);
   }
 
-  private async updateOpenAIModelList(
+  private async updateModelList(
     profile?: ProviderProfile,
     resourceUri?: vscode.Uri
   ): Promise<void> {
     try {
       const activeProfile = profile ?? (await this.getActiveProviderProfile(resourceUri)).profile;
 
-      if (activeProfile.type !== 'openai-compatible') {
+      if (!supportsModelListing(activeProfile)) {
         return;
       }
 
-      const apiKey = await this.getProviderProfileApiKey(activeProfile.id);
-      if (!apiKey) {
+      const apiKey = activeProfile.auth.scheme === 'none'
+        ? undefined
+        : await this.getProviderProfileApiKey(activeProfile.id);
+
+      if (activeProfile.auth.scheme !== 'none' && !apiKey) {
         return;
       }
 
-      const openai = createOpenAIClient(activeProfile, apiKey);
-      const models = await openai.models.list();
+      const client = createClientForModelListing(activeProfile, apiKey);
+      const models = await client.models.list();
       const availableModels = models.data.map((model) => model.id);
-      const cacheKey = `${AVAILABLE_OPENAI_MODELS_KEY}:${activeProfile.id}`;
+      const cacheKey = `${AVAILABLE_MODELS_KEY}:${activeProfile.id}`;
 
       await this.context.globalState.update(cacheKey, availableModels);
 
@@ -487,7 +522,32 @@ export class ConfigurationManager {
         await this.saveProviderProfiles(nextProfiles);
       }
     } catch (error) {
-      console.error('Failed to fetch OpenAI models:', error);
+      logDebug(
+        'Failed to fetch provider models',
+        { error: error instanceof Error ? error.message : String(error) },
+        resourceUri
+      );
     }
+  }
+
+  private async warnAboutLegacyProviderProfiles(): Promise<void> {
+    if (this.context.globalState.get<boolean>(PROVIDER_SCHEMA_WARNING_KEY)) {
+      return;
+    }
+
+    const rawProfiles = this.getConfig<unknown[]>(ConfigKeys.PROVIDER_PROFILES, []);
+    if (!rawProfiles.length) {
+      await this.context.globalState.update(PROVIDER_SCHEMA_WARNING_KEY, true);
+      return;
+    }
+
+    const invalidProfiles = rawProfiles.filter((item) => !normalizeProviderProfile(item));
+    if (invalidProfiles.length) {
+      vscode.window.showWarningMessage(
+        'CommitFlow provider profiles now use a new schema. Legacy provider entries were ignored and need to be recreated in Manage Provider Profiles.'
+      );
+    }
+
+    await this.context.globalState.update(PROVIDER_SCHEMA_WARNING_KEY, true);
   }
 }
