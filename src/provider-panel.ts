@@ -150,6 +150,7 @@ export class ProviderManagementPanel {
 
     if (this.currentPanel) {
       this.currentPanel.resourceUri = resourceUri;
+      this.currentPanel.setHtml();
       this.currentPanel.panel.reveal(vscode.ViewColumn.One);
       void this.currentPanel.refresh(options.selectedProfileId, options.preloadModelsForProfileId);
       return this.currentPanel;
@@ -184,7 +185,6 @@ export class ProviderManagementPanel {
     this.configManager = ConfigurationManager.getInstance();
     this.panel = panel;
     this.resourceUri = resourceUri;
-    this.panel.webview.html = this.getHtml();
 
     this.panel.onDidDispose(() => {
       if (ProviderManagementPanel.currentPanel === this) {
@@ -201,6 +201,12 @@ export class ProviderManagementPanel {
         );
       }
     });
+
+    this.setHtml();
+  }
+
+  private setHtml() {
+    this.panel.webview.html = this.getHtml();
   }
 
   private async handleMessage(message: any) {
@@ -289,6 +295,7 @@ export class ProviderManagementPanel {
           driverKind: entry.driverKind,
           authScheme: entry.authScheme,
           supportsModelListing: entry.supportsModelListing,
+          recommendedModel: entry.recommendedModel,
           defaults: createDefaultProfileDraft(entry.id),
           requiredFields: entry.requiredFields
         }))
@@ -681,6 +688,70 @@ export class ProviderManagementPanel {
       font-size: 12px;
       line-height: 1.5;
     }
+    .request-preview {
+      grid-column: 1 / -1;
+      margin-top: 2px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(255,250,245,0.95) 100%);
+      font-size: 12px;
+      line-height: 1.55;
+      color: var(--ink);
+      word-break: break-word;
+    }
+    .request-preview.warning {
+      border-color: #d89a4a;
+      background: #fff6e8;
+    }
+    .request-preview-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .request-preview-title {
+      color: var(--accent);
+      font-weight: 700;
+    }
+    .request-preview-actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .request-preview button {
+      padding: 6px 9px;
+      font-size: 11px;
+    }
+    .request-preview details {
+      margin-top: 8px;
+    }
+    .request-preview summary {
+      cursor: pointer;
+      color: var(--muted);
+      user-select: none;
+    }
+    .request-preview dl {
+      margin: 8px 0 0;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 4px 10px;
+    }
+    .request-preview dt {
+      color: var(--muted);
+    }
+    .request-preview dd {
+      margin: 0;
+      font-family: var(--mono);
+      font-size: 11px;
+    }
+    .request-preview-feedback {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 11px;
+      min-height: 16px;
+    }
     .model-list {
       margin-top: 10px;
       display: none;
@@ -818,6 +889,8 @@ export class ProviderManagementPanel {
     };
 
     let draft = null;
+    let draftMode = 'selected';
+    let previewFrame = 0;
 
     function getCatalogEntry(providerId) {
       return state.catalog.find((entry) => entry.id === providerId);
@@ -878,7 +951,14 @@ export class ProviderManagementPanel {
       }
 
       const selected = getSelectedProfile();
-      draft = selected ? draftFromProfile(selected) : defaultDraftFromCatalog('openai');
+      if (selected) {
+        draft = draftFromProfile(selected);
+        draftMode = 'selected';
+        return;
+      }
+
+      draft = defaultDraftFromCatalog('openai');
+      draftMode = 'catalog';
     }
 
     function renderProfiles() {
@@ -920,6 +1000,7 @@ export class ProviderManagementPanel {
         button.addEventListener('click', () => {
           state.selectedProfileId = profile.id;
           draft = draftFromProfile(profile);
+          draftMode = 'selected';
           render();
         });
         els.profileList.appendChild(button);
@@ -949,7 +1030,13 @@ export class ProviderManagementPanel {
       Array.from(els.catalogBody.querySelectorAll('[data-provider-id]')).forEach((button) => {
         button.addEventListener('click', () => {
           const providerId = button.getAttribute('data-provider-id');
-          draft = defaultDraftFromCatalog(providerId);
+          const nextDraft = defaultDraftFromCatalog(providerId);
+          if (!nextDraft) {
+            return;
+          }
+
+          draft = nextDraft;
+          draftMode = 'catalog';
           state.selectedProfileId = undefined;
           render();
           els.catalogDialog.close();
@@ -986,9 +1073,213 @@ export class ProviderManagementPanel {
       '</div>';
     }
 
+    function getFormValue(id) {
+      const input = document.getElementById(id);
+      return input ? input.value.trim() : '';
+    }
+
+    function collectDraftFromForm() {
+      if (!document.getElementById('profileName')) {
+        return draft;
+      }
+
+      return {
+        id: draft.id,
+        name: getFormValue('profileName'),
+        providerId: getFormValue('providerId'),
+        model: getFormValue('model'),
+        apiKey: document.getElementById('apiKey') ? document.getElementById('apiKey').value : '',
+        connection: {
+          baseURL: getFormValue('baseURL'),
+          endpoint: getFormValue('endpoint'),
+          deployment: getFormValue('deployment'),
+          apiVersion: getFormValue('apiVersion')
+        },
+        inference: {
+          temperature: getFormValue('temperature')
+        }
+      };
+    }
+
+    function buildFullUrl(endpoint, query) {
+      if (!endpoint || query === 'none' || query === 'SDK managed') {
+        return endpoint;
+      }
+
+      return endpoint + (endpoint.includes('?') ? '&' : '?') + query;
+    }
+
+    function resolveRequestPreview(nextDraft, providerEntry) {
+      const connection = nextDraft.connection || {};
+      const missingFields = (providerEntry.requiredFields || []).filter((fieldName) => !String(connection[fieldName] || '').trim());
+      let endpoint = '';
+      let endpointSummary = 'SDK default endpoint';
+      let query = 'none';
+      let auth = providerEntry.authScheme === 'bearer'
+        ? 'Authorization: Bearer'
+        : providerEntry.authScheme === 'api-key'
+          ? 'API key'
+          : 'none';
+
+      switch (providerEntry.driverKind) {
+        case 'openai':
+          endpoint = connection.baseURL || '';
+          endpointSummary = endpoint || 'SDK default endpoint';
+          break;
+        case 'azure-openai': {
+          const azureEndpoint = (connection.endpoint || '').replace(new RegExp('/+$'), '');
+          const deployment = connection.deployment || '';
+          endpoint = azureEndpoint && deployment
+            ? azureEndpoint + '/openai/deployments/' + deployment
+            : '';
+          endpointSummary = endpoint || 'Incomplete Azure endpoint';
+          query = connection.apiVersion ? 'api-version=' + connection.apiVersion : 'api-version=<required>';
+          auth = 'api-key header';
+          break;
+        }
+        case 'anthropic':
+          endpoint = connection.baseURL || '';
+          endpointSummary = endpoint || 'SDK default endpoint';
+          query = 'SDK managed';
+          auth = 'x-api-key header';
+          break;
+        case 'gemini':
+          endpoint = connection.baseURL || '';
+          endpointSummary = endpoint || 'SDK default endpoint';
+          query = 'SDK managed';
+          auth = 'API key';
+          break;
+      }
+
+      const fullUrl = buildFullUrl(endpoint, query);
+      const hasConcreteEndpoint = Boolean(endpoint) && !endpoint.includes('<');
+      const hasConcreteQuery = query !== 'api-version=<required>';
+
+      return {
+        endpoint,
+        endpointSummary,
+        query,
+        auth,
+        fullUrl,
+        missingFields,
+        warning: missingFields.length > 0,
+        canCopyEndpoint: hasConcreteEndpoint,
+        canCopyFullUrl: hasConcreteEndpoint && hasConcreteQuery
+      };
+    }
+
+    function renderRequestPreview() {
+      const preview = document.getElementById('requestPreview');
+      if (!preview) {
+        return;
+      }
+
+      const nextDraft = collectDraftFromForm();
+      const providerEntry = getCatalogEntry(nextDraft.providerId);
+      if (!providerEntry) {
+        preview.className = 'request-preview warning';
+        preview.innerHTML = '<span class="request-preview-title">Resolved request:</span> provider metadata is unavailable.';
+        return;
+      }
+
+      const resolved = resolveRequestPreview(nextDraft, providerEntry);
+      const warningText = resolved.warning
+        ? '<div class="request-preview-feedback">Missing: ' + escapeHtml(resolved.missingFields.join(', ')) + '</div>'
+        : '<div class="request-preview-feedback" id="copyFeedback"></div>';
+
+      preview.className = 'request-preview' + (resolved.warning ? ' warning' : '');
+      preview.innerHTML =
+        '<div class="request-preview-header">' +
+          '<div>' +
+            '<span class="request-preview-title">Resolved request:</span> ' +
+            escapeHtml(resolved.endpointSummary) +
+            ' &middot; ' + escapeHtml(resolved.query) +
+            ' &middot; ' + escapeHtml(resolved.auth) +
+          '</div>' +
+          '<div class="request-preview-actions">' +
+            '<button type="button" class="ghost" id="copyEndpointButton"' + (resolved.canCopyEndpoint ? '' : ' disabled') + '>Copy endpoint</button>' +
+            '<button type="button" class="ghost" id="copyFullUrlButton"' + (resolved.canCopyFullUrl ? '' : ' disabled') + '>Copy full URL</button>' +
+          '</div>' +
+        '</div>' +
+        '<details>' +
+          '<summary>Details</summary>' +
+          '<dl>' +
+            '<dt>Endpoint</dt><dd>' + escapeHtml(resolved.endpoint || resolved.endpointSummary) + '</dd>' +
+            '<dt>Query</dt><dd>' + escapeHtml(resolved.query) + '</dd>' +
+            '<dt>Auth</dt><dd>' + escapeHtml(resolved.auth) + '</dd>' +
+          '</dl>' +
+        '</details>' +
+        warningText;
+
+      const copyEndpointButton = document.getElementById('copyEndpointButton');
+      const copyFullUrlButton = document.getElementById('copyFullUrlButton');
+      if (copyEndpointButton) {
+        copyEndpointButton.addEventListener('click', () => copyPreviewValue(resolved.endpoint, 'Endpoint copied.'));
+      }
+      if (copyFullUrlButton) {
+        copyFullUrlButton.addEventListener('click', () => copyPreviewValue(resolved.fullUrl, 'Full URL copied.'));
+      }
+    }
+
+    function schedulePreviewUpdate() {
+      if (previewFrame) {
+        cancelAnimationFrame(previewFrame);
+      }
+
+      previewFrame = requestAnimationFrame(() => {
+        previewFrame = 0;
+        renderRequestPreview();
+      });
+    }
+
+    function showCopyFeedback(message) {
+      const feedback = document.getElementById('copyFeedback');
+      if (feedback) {
+        feedback.textContent = message;
+      }
+    }
+
+    async function copyText(value) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(value);
+        return;
+      }
+
+      const textarea = document.createElement('textarea');
+      textarea.value = value;
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      document.body.appendChild(textarea);
+      textarea.select();
+      const copied = document.execCommand('copy');
+      document.body.removeChild(textarea);
+      if (!copied) {
+        throw new Error('Copy command failed.');
+      }
+    }
+
+    async function copyPreviewValue(value, successMessage) {
+      try {
+        await copyText(value);
+        showCopyFeedback(successMessage);
+      } catch {
+        showCopyFeedback('Copy failed.');
+      }
+    }
+
     function renderForm() {
       initializeDraft();
+      if (!draft) {
+        els.mainContent.innerHTML = '<div class="empty">Provider catalog is still loading. Reopen the panel if this does not resolve.</div>';
+        return;
+      }
+
       const providerEntry = getCatalogEntry(draft.providerId);
+      if (!providerEntry) {
+        els.mainContent.innerHTML = '<div class="empty">The selected provider could not be resolved. Reopen the panel or choose another provider.</div>';
+        return;
+      }
+
       const selected = getSelectedProfile();
       const groupedCatalog = ['Hosted', 'Local', 'Custom'].map((group) => ({
         group,
@@ -1043,6 +1334,7 @@ export class ProviderManagementPanel {
             showEndpoint ? field('Endpoint', 'endpoint', draft.connection.endpoint, { placeholder: 'https://your-resource.openai.azure.com' }) : '',
             showDeployment ? field('Deployment', 'deployment', draft.connection.deployment, { placeholder: providerEntry.recommendedModel || 'Deployment name' }) : '',
             showApiVersion ? field('API Version', 'apiVersion', draft.connection.apiVersion, { placeholder: '2024-10-21' }) : '',
+            '<div class="request-preview" id="requestPreview"></div>',
           '</div>',
         '</section>',
         '<section class="section">',
@@ -1071,6 +1363,9 @@ export class ProviderManagementPanel {
         const currentProviderEntry = getCatalogEntry(draft.providerId);
         const nextProviderId = event.target.value;
         const nextDraft = defaultDraftFromCatalog(nextProviderId);
+        if (!currentProviderEntry || !nextDraft) {
+          return;
+        }
         const keepCustomName =
           draft.name &&
           draft.name !== currentProviderEntry.label;
@@ -1090,6 +1385,7 @@ export class ProviderManagementPanel {
                 : nextDraft.inference.temperature
           }
         };
+        draftMode = draft.id ? 'selected' : 'catalog';
         render();
       });
 
@@ -1118,7 +1414,22 @@ export class ProviderManagementPanel {
         vscode.postMessage({ type: 'clear-workspace' });
       });
 
+      [
+        'providerId',
+        'baseURL',
+        'endpoint',
+        'deployment',
+        'apiVersion'
+      ].forEach((id) => {
+        const input = document.getElementById(id);
+        if (input) {
+          input.addEventListener('input', schedulePreviewUpdate);
+          input.addEventListener('change', schedulePreviewUpdate);
+        }
+      });
+
       renderModelList();
+      renderRequestPreview();
     }
 
     function renderModelList() {
@@ -1148,30 +1459,21 @@ export class ProviderManagementPanel {
     }
 
     function collectDraft() {
-      return {
-        id: draft.id,
-        name: document.getElementById('profileName').value,
-        providerId: document.getElementById('providerId').value,
-        model: document.getElementById('model').value,
-        apiKey: document.getElementById('apiKey') ? document.getElementById('apiKey').value : '',
-        connection: {
-          baseURL: document.getElementById('baseURL') ? document.getElementById('baseURL').value : '',
-          endpoint: document.getElementById('endpoint') ? document.getElementById('endpoint').value : '',
-          deployment: document.getElementById('deployment') ? document.getElementById('deployment').value : '',
-          apiVersion: document.getElementById('apiVersion') ? document.getElementById('apiVersion').value : ''
-        },
-        inference: {
-          temperature: document.getElementById('temperature').value
-        }
-      };
+      return collectDraftFromForm();
     }
 
     function render() {
-      renderProfiles();
-      renderCatalog();
-      renderForm();
-      els.duplicateProfileButton.disabled = !getSelectedProfile();
-      els.deleteProfileButton.disabled = !getSelectedProfile();
+      try {
+        renderProfiles();
+        renderCatalog();
+        renderForm();
+        els.duplicateProfileButton.disabled = !getSelectedProfile();
+        els.deleteProfileButton.disabled = !getSelectedProfile();
+      } catch (error) {
+        const message = error && error.message ? error.message : String(error);
+        els.profileList.innerHTML = els.profileList.innerHTML || '<div class="empty">Unable to render provider profiles.</div>';
+        els.mainContent.innerHTML = '<div class="empty">Unable to render provider details: ' + escapeHtml(message) + '</div>';
+      }
     }
 
     window.addEventListener('message', (event) => {
@@ -1182,11 +1484,21 @@ export class ProviderManagementPanel {
 
       Object.assign(state, message.payload);
       const selected = getSelectedProfile();
-      draft =
-        selected && (!draft || draft.id === undefined || draft.id === selected.id)
-          ? draftFromProfile(selected)
-          : draft;
+      if (selected && (!draft || draftMode === 'selected' || draft.id === selected.id)) {
+        draft = draftFromProfile(selected);
+        draftMode = 'selected';
+      } else if (!draft && state.catalog.length) {
+        draft = defaultDraftFromCatalog('openai');
+        draftMode = 'catalog';
+      }
       render();
+    });
+
+    window.addEventListener('error', (event) => {
+      const message = event && event.error && event.error.message
+        ? event.error.message
+        : event.message || 'Unknown webview error';
+      els.mainContent.innerHTML = '<div class="empty">Provider panel error: ' + escapeHtml(message) + '</div>';
     });
 
     els.newProfileButton.addEventListener('click', () => els.catalogDialog.showModal());
@@ -1204,6 +1516,7 @@ export class ProviderManagementPanel {
       }
     });
 
+    render();
     vscode.postMessage({ type: 'ready' });
 
     function escapeHtml(value) {
