@@ -75,6 +75,8 @@ function getCompactPromptPresetCode(promptPreset: PromptPreset): string {
 function getActiveResourceUri(): vscode.Uri | undefined {
   const activeEditorUri = vscode.window.activeTextEditor?.document.uri;
   if (activeEditorUri) {
+    // Resolve settings against the active file's workspace folder when possible so the
+    // status bar reflects repository-specific configuration.
     return vscode.workspace.getWorkspaceFolder(activeEditorUri)?.uri ?? activeEditorUri;
   }
 
@@ -142,6 +144,7 @@ async function getStatusBarState(configManager: ConfigurationManager): Promise<S
     language,
     promptPreset,
     workspaceOverrideActive: Boolean(
+      // The repository has an override when its active profile differs from the global one.
       resourceUri &&
         activeProfileId &&
         activeProfileId !== globalActiveProfileId

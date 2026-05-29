@@ -85,6 +85,7 @@ function hydrateProfileInput(payload: ProviderDraftPayload): ProviderProfileInpu
     throw new Error('Provider is required.');
   }
 
+  // Merge the incoming draft with provider defaults so the panel can save partial edits.
   const defaults = createDefaultProfileDraft(providerId as any);
   const connection = stripUndefined({
     ...defaults.connection,
@@ -299,6 +300,8 @@ export class ProviderManagementPanel {
 
     this.selectedProfileId = selectedProfile?.id;
 
+    // Rebuild the webview state from live configuration so the UI stays in sync with
+    // credential changes, selected models, and workspace overrides.
     const profileSummaries = await Promise.all(
       profiles.map(async (profile) => ({
         id: profile.id,
@@ -441,6 +444,7 @@ export class ProviderManagementPanel {
       throw new Error('No active workspace is available for repository override.');
     }
 
+    // Store the override at the most specific configuration scope that applies to this repo.
     await this.configManager.setActiveProviderProfileId(
       profileId,
       getConfigurationTargetForResource(this.resourceUri),

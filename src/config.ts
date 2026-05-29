@@ -103,6 +103,8 @@ function getProfileApiKeyStorageKey(profileId: string): string {
 export function getConfigurationTargetForResource(
   resourceUri?: vscode.Uri
 ): vscode.ConfigurationTarget {
+  // Prefer folder-scoped settings for repository roots, then workspace-level settings,
+  // and fall back to global settings when no workspace context exists.
   return resourceUri && vscode.workspace.getWorkspaceFolder(resourceUri)
     ? vscode.ConfigurationTarget.WorkspaceFolder
     : vscode.workspace.workspaceFile || vscode.workspace.workspaceFolders?.length

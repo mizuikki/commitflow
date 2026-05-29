@@ -48,6 +48,8 @@ const generateCommitMessageChatCompletionPrompt = async (
   const chatContextAsCompletionRequest = [...INIT_MESSAGES_PROMPT];
 
   if (additionalContext) {
+    // Keep the staged diff as the primary source of truth and append the SCM input as
+    // optional user context only when it exists.
     chatContextAsCompletionRequest.push({
       role: 'user',
       content: `Additional context for the changes. Use it only when it is consistent with the staged diff:\n${additionalContext}`
@@ -80,6 +82,7 @@ export async function getRepo(arg?: GenerateCommitMsgArg): Promise<GitExtensionR
   if (typeof arg === 'object' && arg.rootUri) {
     const resourceUri = arg.rootUri;
     const realResourcePath: string = fs.realpathSync(resourceUri!.fsPath);
+    // Resolve symlinks before matching so nested workspaces map to the correct Git repo.
     for (let i = 0; i < gitApi.repositories.length; i++) {
       const repo = gitApi.repositories[i];
       if (realResourcePath.startsWith(repo.rootUri.fsPath)) {
