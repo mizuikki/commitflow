@@ -8,7 +8,11 @@ import {
   PromptPreset,
   normalizePromptPreset
 } from './config';
-import { buildCommitTypeReferenceTable, getGitmojiForCommitType } from './gitmoji';
+import {
+  buildCommitTypeReferenceTable,
+  buildGitmojiReferenceTable,
+  getGitmojiEmojiByCode
+} from './gitmoji';
 
 const COMMIT_PROMPT_TEMPLATE_PATH = 'prompt/commit.md';
 type GitmojiPlacement = 'none' | 'prefix' | 'suffix';
@@ -98,23 +102,39 @@ export function buildOutputFormat(gitmojiPlacement: GitmojiPlacement): string {
 
 export function buildGitmojiRules(gitmojiPlacement: GitmojiPlacement): string {
   if (gitmojiPlacement === 'prefix') {
+    const gitmojiReference = `### Gitmoji Reference
+
+${buildGitmojiReferenceTable()}`;
+
     return `### Gitmoji
 
-- Use exactly one emoji from the Type Reference table
+- Use exactly one emoji from the Gitmoji Reference table
 - Prefix the emoji before the commit type
 - Example: ✨ feat(auth): add oauth2 login
-- Choose emojis only from the Type Reference table
-- Do not output Gitmoji shortcodes such as ":bug:"`;
+- Choose the emoji independently from the Conventional Commit type
+- Choose the emoji by matching the staged diff intent to the Gitmoji Reference
+- Do not use fixed mappings such as feat always using ✨ or fix always using 🐛
+- Do not output Gitmoji shortcodes such as ":bug:"
+
+${gitmojiReference}`;
   }
 
   if (gitmojiPlacement === 'suffix') {
+    const gitmojiReference = `### Gitmoji Reference
+
+${buildGitmojiReferenceTable()}`;
+
     return `### Gitmoji
 
-- Use exactly one emoji from the Type Reference table
+- Use exactly one emoji from the Gitmoji Reference table
 - Place the emoji inside the subject (after ":") instead of prefixing the type
 - Example: feat(auth): ✨ add oauth2 login
-- Choose emojis only from the Type Reference table
-- Do not output Gitmoji shortcodes such as ":bug:"`;
+- Choose the emoji independently from the Conventional Commit type
+- Choose the emoji by matching the staged diff intent to the Gitmoji Reference
+- Do not use fixed mappings such as feat always using ✨ or fix always using 🐛
+- Do not output Gitmoji shortcodes such as ":bug:"
+
+${gitmojiReference}`;
   }
 
   return '';
@@ -124,13 +144,13 @@ export function buildSettingsActionExamples(gitmojiPlacement: GitmojiPlacement):
   switch (gitmojiPlacement) {
     case 'prefix':
       return [
-        `- Good: ${getGitmojiForCommitType('chore')} chore(settings): set gitmoji prompt preset`,
-        `- Bad: ${getGitmojiForCommitType('chore')} chore(settings): add gitmoji prompt preset setting`
+        `- Good: ${getGitmojiEmojiByCode(':wrench:')} chore(settings): set gitmoji prompt preset`,
+        `- Bad: ${getGitmojiEmojiByCode(':wrench:')} chore(settings): add gitmoji prompt preset setting`
       ].join('\n');
     case 'suffix':
       return [
-        `- Good: chore(settings): ${getGitmojiForCommitType('chore')} set gitmoji prompt preset`,
-        `- Bad: chore(settings): ${getGitmojiForCommitType('chore')} add gitmoji prompt preset setting`
+        `- Good: chore(settings): ${getGitmojiEmojiByCode(':wrench:')} set gitmoji prompt preset`,
+        `- Bad: chore(settings): ${getGitmojiEmojiByCode(':wrench:')} add gitmoji prompt preset setting`
       ].join('\n');
     default:
       return [
@@ -143,15 +163,15 @@ export function buildSettingsActionExamples(gitmojiPlacement: GitmojiPlacement):
 export function buildExample(language: string, gitmojiPlacement: GitmojiPlacement): string {
   const exampleHeader =
     gitmojiPlacement === 'prefix'
-      ? `${getGitmojiForCommitType('refactor')} refactor(server): <subject in ${language}>`
+      ? `${getGitmojiEmojiByCode(':recycle:')} refactor(server): <subject in ${language}>`
       : gitmojiPlacement === 'suffix'
-        ? `refactor(server): ${getGitmojiForCommitType('refactor')} <subject in ${language}>`
+        ? `refactor(server): ${getGitmojiEmojiByCode(':recycle:')} <subject in ${language}>`
         : `refactor(server): <subject in ${language}>`;
   const settingsExampleHeader =
     gitmojiPlacement === 'prefix'
-      ? `${getGitmojiForCommitType('chore')} chore(settings): set setting value`
+      ? `${getGitmojiEmojiByCode(':wrench:')} chore(settings): set setting value`
       : gitmojiPlacement === 'suffix'
-        ? `chore(settings): ${getGitmojiForCommitType('chore')} set setting value`
+        ? `chore(settings): ${getGitmojiEmojiByCode(':wrench:')} set setting value`
         : 'chore(settings): set setting value';
 
   return `\`\`\`
@@ -171,11 +191,10 @@ export async function buildCommitPrompt(
   gitmojiPlacement: GitmojiPlacement
 ): Promise<string> {
   const template = await getCommitPromptTemplate();
-  const includeGitmoji = gitmojiPlacement !== 'none';
   const replacements: Record<string, string> = {
     LANGUAGE: language,
     OUTPUT_FORMAT: buildOutputFormat(gitmojiPlacement),
-    TYPE_REFERENCE: buildCommitTypeReferenceTable(includeGitmoji),
+    TYPE_REFERENCE: buildCommitTypeReferenceTable(),
     GITMOJI_RULES: buildGitmojiRules(gitmojiPlacement),
     SETTINGS_ACTION_EXAMPLES: buildSettingsActionExamples(gitmojiPlacement),
     EXAMPLE: buildExample(language, gitmojiPlacement)

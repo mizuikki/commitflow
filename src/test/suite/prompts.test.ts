@@ -25,20 +25,28 @@ suite('prompts', () => {
   });
 
   suite('buildCommitTypeReferenceTable', () => {
-    test('returns table with emoji column when includeGitmoji is true', async () => {
+    test('returns conventional commit types without gitmoji mappings', async () => {
       const { buildCommitTypeReferenceTable } = await import('../../gitmoji');
-      const result = buildCommitTypeReferenceTable(true);
+      const result = buildCommitTypeReferenceTable();
+
       assert.ok(result.includes('feat'));
-      assert.ok(result.includes('✨'));
-      assert.ok(result.includes('Maintain configuration or project metadata.'));
+      assert.ok(result.includes('chore'));
+      assert.ok(!result.includes('✨'));
+      assert.ok(!result.includes(':sparkles:'));
       assert.ok(!result.includes('Add or update configuration files.'));
     });
+  });
 
-    test('returns table without emoji column when includeGitmoji is false', async () => {
-      const { buildCommitTypeReferenceTable } = await import('../../gitmoji');
-      const result = buildCommitTypeReferenceTable(false);
-      assert.ok(result.includes('feat'));
-      assert.ok(!result.includes('✨'));
+  suite('buildGitmojiReferenceTable', () => {
+    test('returns the full official gitmoji reference table', async () => {
+      const { buildGitmojiReferenceTable } = await import('../../gitmoji');
+      const result = buildGitmojiReferenceTable();
+
+      assert.ok(result.includes('| Emoji | Gitmoji Code | Description | Semver |'));
+      assert.ok(result.includes(':sparkles:'));
+      assert.ok(result.includes(':bug:'));
+      assert.ok(result.includes(':fire:'));
+      assert.ok(result.includes('Add or update configuration files.'));
     });
   });
 
@@ -76,6 +84,9 @@ suite('prompts', () => {
       const result = buildGitmojiRules('prefix');
       assert.ok(result.includes('Prefix the emoji before the commit type'));
       assert.ok(result.includes('✨ feat(auth): add oauth2 login'));
+      assert.ok(result.includes('Gitmoji Reference'));
+      assert.ok(result.includes(':sparkles:'));
+      assert.ok(result.includes('Choose the emoji independently from the Conventional Commit type'));
     });
 
     test('returns suffix guidance when placement is suffix', async () => {
@@ -83,6 +94,16 @@ suite('prompts', () => {
       const result = buildGitmojiRules('suffix');
       assert.ok(result.includes('Place the emoji inside the subject (after ":")'));
       assert.ok(result.includes('feat(auth): ✨ add oauth2 login'));
+      assert.ok(result.includes('Gitmoji Reference'));
+      assert.ok(result.includes(':bug:'));
+      assert.ok(result.includes('Do not use fixed mappings such as feat always using ✨'));
+    });
+
+    test('returns no gitmoji reference when placement is none', async () => {
+      const { buildGitmojiRules } = await import('../../prompts');
+      const result = buildGitmojiRules('none');
+
+      assert.strictEqual(result, '');
     });
   });
 
