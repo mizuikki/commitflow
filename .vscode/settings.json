@@ -8,5 +8,5 @@
     "dist": true
   },
   "typescript.tsc.autoDetect": "off",
-  "ai-commit-plus.PROMPT_PRESET": "with-gitmoji"
+  "commitflow.promptPreset": "gitmoji-prefix"
 }
