@@ -87,7 +87,9 @@ suite('prompts', () => {
       assert.ok(result.includes('✨ feat(auth): add oauth2 login'));
       assert.ok(result.includes('Gitmoji Reference'));
       assert.ok(result.includes(':sparkles:'));
-      assert.ok(result.includes('Choose the emoji independently from the Conventional Commit type'));
+      assert.ok(result.includes('Choose the emoji as a single-label classification task'));
+      assert.ok(result.includes('Prefer outcome semantics over keyword matching'));
+      assert.ok(result.includes('Fix duplicated prompt output heading -> 🐛, not 🎨'));
     });
 
     test('returns suffix guidance when placement is suffix', async () => {
@@ -98,6 +100,7 @@ suite('prompts', () => {
       assert.ok(result.includes('Gitmoji Reference'));
       assert.ok(result.includes(':bug:'));
       assert.ok(result.includes('Do not use fixed mappings such as feat always using ✨'));
+      assert.ok(result.includes('Add an inspection/debugging command -> 🧐'));
     });
 
     test('returns no gitmoji reference when placement is none', async () => {

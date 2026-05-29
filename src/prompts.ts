@@ -94,6 +94,27 @@ export function buildOutputFormat(gitmojiPlacement: GitmojiPlacement): string {
 - Do NOT add additional "<type>(<scope>): <subject>" lines anywhere in the message`;
 }
 
+function buildGitmojiSelectionGuidance(): string {
+  return `### Gitmoji Selection
+
+- Choose the emoji as a single-label classification task
+- First identify the primary outcome of the staged diff: what changed for users, maintainers, runtime behavior, generated output, tests, build, docs, or tooling
+- Choose the emoji whose official Gitmoji description best matches that primary outcome
+- Prefer outcome semantics over keyword matching, filenames, touched directories, or words in the subject
+- Use artifact-specific emojis only when the artifact change is the primary outcome itself
+- If multiple emojis seem plausible, choose the one that explains why the change matters, not where the change happened
+- Do not use fixed mappings such as feat always using ✨ or fix always using 🐛
+
+### Gitmoji Disambiguation Examples
+
+- Fix duplicated prompt output heading -> 🐛, not 🎨
+- Reformat source code without behavior change -> 🎨
+- Add a new user-facing command -> ✨
+- Add an inspection/debugging command -> 🧐
+- Add tests only -> ✅
+- Update README only -> 📝`;
+}
+
 export function buildGitmojiRules(gitmojiPlacement: GitmojiPlacement): string {
   if (gitmojiPlacement === 'prefix') {
     const gitmojiReference = `### Gitmoji Reference
@@ -105,10 +126,9 @@ ${buildGitmojiReferenceTable()}`;
 - Use exactly one emoji from the Gitmoji Reference table
 - Prefix the emoji before the commit type
 - Example: ✨ feat(auth): add oauth2 login
-- Choose the emoji independently from the Conventional Commit type
-- Choose the emoji by matching the staged diff intent to the Gitmoji Reference
-- Do not use fixed mappings such as feat always using ✨ or fix always using 🐛
 - Do not output Gitmoji shortcodes such as ":bug:"
+
+${buildGitmojiSelectionGuidance()}
 
 ${gitmojiReference}`;
   }
@@ -123,10 +143,9 @@ ${buildGitmojiReferenceTable()}`;
 - Use exactly one emoji from the Gitmoji Reference table
 - Place the emoji inside the subject (after ":") instead of prefixing the type
 - Example: feat(auth): ✨ add oauth2 login
-- Choose the emoji independently from the Conventional Commit type
-- Choose the emoji by matching the staged diff intent to the Gitmoji Reference
-- Do not use fixed mappings such as feat always using ✨ or fix always using 🐛
 - Do not output Gitmoji shortcodes such as ":bug:"
+
+${buildGitmojiSelectionGuidance()}
 
 ${gitmojiReference}`;
   }
