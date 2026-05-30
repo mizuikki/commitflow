@@ -101,6 +101,74 @@ suite('commands', () => {
       });
       assert.deepStrictEqual(out, { finalText: undefined, refusalText: 'no', reasoningText: 'pong' });
     });
+
+    test('buildOpenAIChatCompletionPayload disables DeepSeek thinking by default', async () => {
+      const { buildOpenAIChatCompletionPayload } = await import('../../openai-utils');
+      const payload = buildOpenAIChatCompletionPayload(
+        [{ role: 'user', content: 'hello' }],
+        {
+          id: 'profile-1',
+          name: 'DeepSeek',
+          providerId: 'deepseek',
+          driverKind: 'openai',
+          model: 'deepseek-v4-flash',
+          auth: { scheme: 'bearer' }
+        }
+      );
+
+      assert.deepStrictEqual((payload as any).thinking, { type: 'disabled' });
+      assert.strictEqual((payload as any).reasoning_effort, undefined);
+    });
+
+    test('buildOpenAIChatCompletionPayload sends DeepSeek reasoning effort when thinking is enabled', async () => {
+      const { buildOpenAIChatCompletionPayload } = await import('../../openai-utils');
+      const payload = buildOpenAIChatCompletionPayload(
+        [{ role: 'user', content: 'hello' }],
+        {
+          id: 'profile-1',
+          name: 'DeepSeek',
+          providerId: 'deepseek',
+          driverKind: 'openai',
+          model: 'deepseek-v4-pro',
+          auth: { scheme: 'bearer' },
+          inference: {
+            deepseek: {
+              thinking: 'enabled',
+              reasoningEffort: 'max'
+            }
+          }
+        }
+      );
+
+      assert.deepStrictEqual((payload as any).thinking, { type: 'enabled' });
+      assert.strictEqual((payload as any).reasoning_effort, 'max');
+    });
+
+    test('buildOpenAIChatCompletionPayload omits DeepSeek fields for other providers', async () => {
+      const { buildOpenAIChatCompletionPayload } = await import('../../openai-utils');
+      const payload = buildOpenAIChatCompletionPayload(
+        [{ role: 'user', content: 'hello' }],
+        {
+          id: 'profile-1',
+          name: 'OpenAI',
+          providerId: 'openai',
+          driverKind: 'openai',
+          model: 'gpt-5.5',
+          auth: { scheme: 'bearer' },
+          inference: {
+            temperature: 0.2,
+            deepseek: {
+              thinking: 'enabled',
+              reasoningEffort: 'max'
+            }
+          }
+        } as any
+      );
+
+      assert.strictEqual((payload as any).thinking, undefined);
+      assert.strictEqual((payload as any).reasoning_effort, undefined);
+      assert.strictEqual(payload.temperature, 0.2);
+    });
   });
 
   suite('validateTemperatureInput', () => {

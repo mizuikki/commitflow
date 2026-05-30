@@ -82,6 +82,76 @@ suite('config', () => {
       assert.strictEqual(profile?.inference?.temperature, 0.3);
     });
 
+    test('normalizes DeepSeek inference settings', async () => {
+      const { normalizeProviderProfile } = await import('../../provider-types');
+      const profile = normalizeProviderProfile({
+        id: 'profile-1',
+        name: 'DeepSeek Work',
+        providerId: 'deepseek',
+        driverKind: 'openai',
+        model: 'deepseek-v4-pro',
+        auth: { scheme: 'bearer' },
+        inference: {
+          temperature: 0.4,
+          deepseek: {
+            thinking: 'enabled',
+            reasoningEffort: 'max'
+          }
+        }
+      });
+
+      assert.ok(profile);
+      assert.strictEqual(profile?.inference?.temperature, 0.4);
+      assert.deepStrictEqual(profile?.inference?.deepseek, {
+        thinking: 'enabled',
+        reasoningEffort: 'max'
+      });
+    });
+
+    test('drops invalid DeepSeek inference settings during normalization', async () => {
+      const { normalizeProviderProfile } = await import('../../provider-types');
+      const profile = normalizeProviderProfile({
+        id: 'profile-1',
+        name: 'DeepSeek Work',
+        providerId: 'deepseek',
+        driverKind: 'openai',
+        model: 'deepseek-v4-pro',
+        auth: { scheme: 'bearer' },
+        inference: {
+          deepseek: {
+            thinking: 'auto',
+            reasoningEffort: 'medium'
+          }
+        }
+      });
+
+      assert.ok(profile);
+      assert.strictEqual(profile?.inference, undefined);
+    });
+
+    test('drops DeepSeek inference settings from non-DeepSeek profiles', async () => {
+      const { normalizeProviderProfile } = await import('../../provider-types');
+      const profile = normalizeProviderProfile({
+        id: 'profile-1',
+        name: 'OpenAI Work',
+        providerId: 'openai',
+        driverKind: 'openai',
+        model: 'gpt-5.5',
+        auth: { scheme: 'bearer' },
+        inference: {
+          temperature: 0.5,
+          deepseek: {
+            thinking: 'enabled',
+            reasoningEffort: 'max'
+          }
+        }
+      });
+
+      assert.ok(profile);
+      assert.strictEqual(profile?.inference?.temperature, 0.5);
+      assert.strictEqual(profile?.inference?.deepseek, undefined);
+    });
+
     test('rejects legacy flat provider profiles', async () => {
       const { normalizeProviderProfile } = await import('../../provider-types');
       const profile = normalizeProviderProfile({
@@ -126,6 +196,30 @@ suite('config', () => {
       const draft = createDefaultProfileDraft('deepseek');
 
       assert.strictEqual(draft.connection.baseURL, 'https://api.deepseek.com');
+      assert.deepStrictEqual(draft.inference.deepseek, {
+        thinking: 'disabled'
+      });
+    });
+
+    test('validates DeepSeek inference settings', async () => {
+      const { validateProviderProfile } = await import('../../provider-registry');
+      const errors = validateProviderProfile({
+        id: 'profile-1',
+        name: 'DeepSeek Broken',
+        providerId: 'deepseek',
+        driverKind: 'openai',
+        model: 'deepseek-v4-pro',
+        auth: { scheme: 'bearer' },
+        inference: {
+          deepseek: {
+            thinking: 'auto',
+            reasoningEffort: 'medium'
+          }
+        }
+      } as any);
+
+      assert.ok(errors.some((error: string) => error.includes('DeepSeek thinking')));
+      assert.ok(errors.some((error: string) => error.includes('DeepSeek reasoning effort')));
     });
   });
 

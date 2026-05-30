@@ -1,8 +1,11 @@
 import {
   AuthScheme,
+  DeepSeekReasoningEffort,
+  DeepSeekThinkingMode,
   DriverKind,
   ProviderConnectionConfig,
   ProviderId,
+  ProviderInferenceConfig,
   ProviderProfile
 } from './provider-types';
 import { getRecommendedProviderModel } from './provider-model-presets';
@@ -150,6 +153,8 @@ export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
 ];
 
 const PROVIDER_REGISTRY = new Map(PROVIDER_CATALOG.map((entry) => [entry.id, entry]));
+const DEEPSEEK_THINKING_MODES: DeepSeekThinkingMode[] = ['enabled', 'disabled'];
+const DEEPSEEK_REASONING_EFFORTS: DeepSeekReasoningEffort[] = ['high', 'max'];
 
 export function getProviderCatalogEntry(providerId: ProviderId): ProviderCatalogEntry {
   const entry = PROVIDER_REGISTRY.get(providerId);
@@ -207,7 +212,37 @@ export function validateProviderProfile(profile: ProviderProfile): string[] {
     errors.push('Temperature must be between 0 and 2.');
   }
 
+  const deepseekInference = profile.inference?.deepseek;
+  if (deepseekInference !== undefined && profile.providerId !== 'deepseek') {
+    errors.push('DeepSeek inference settings can only be used with DeepSeek.');
+  }
+  if (
+    deepseekInference?.thinking !== undefined &&
+    !DEEPSEEK_THINKING_MODES.includes(deepseekInference.thinking)
+  ) {
+    errors.push('DeepSeek thinking must be enabled or disabled.');
+  }
+  if (
+    deepseekInference?.reasoningEffort !== undefined &&
+    !DEEPSEEK_REASONING_EFFORTS.includes(deepseekInference.reasoningEffort)
+  ) {
+    errors.push('DeepSeek reasoning effort must be high or max.');
+  }
+
   return errors;
+}
+
+function createDefaultInferenceConfig(providerId: ProviderId): ProviderInferenceConfig {
+  return {
+    temperature: 0.7,
+    ...(providerId === 'deepseek'
+      ? {
+          deepseek: {
+            thinking: 'disabled' as const
+          }
+        }
+      : {})
+  };
 }
 
 export function createDefaultProfileDraft(providerId: ProviderId) {
@@ -218,8 +253,6 @@ export function createDefaultProfileDraft(providerId: ProviderId) {
     authScheme: entry.authScheme,
     model: getRecommendedProviderModel(entry.id),
     connection: { ...(entry.defaults?.connection ?? {}) },
-    inference: {
-      temperature: 0.7
-    }
+    inference: createDefaultInferenceConfig(entry.id)
   };
 }

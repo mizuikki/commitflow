@@ -42,6 +42,10 @@ type ProviderDraftPayload = {
   };
   inference?: {
     temperature?: number | string;
+    deepseek?: {
+      thinking?: string;
+      reasoningEffort?: string;
+    };
   };
 };
 
@@ -73,6 +77,14 @@ function normalizeTemperature(value: unknown): number | undefined {
   return undefined;
 }
 
+function normalizeDeepSeekThinking(value: unknown): 'enabled' | 'disabled' | undefined {
+  return value === 'enabled' || value === 'disabled' ? value : undefined;
+}
+
+function normalizeDeepSeekReasoningEffort(value: unknown): 'high' | 'max' | undefined {
+  return value === 'high' || value === 'max' ? value : undefined;
+}
+
 function stripUndefined<T extends object>(value: T): T {
   return Object.fromEntries(
     Object.entries(value).filter(([, item]) => item !== undefined)
@@ -94,8 +106,23 @@ function hydrateProfileInput(payload: ProviderDraftPayload): ProviderProfileInpu
     deployment: normalizeString(payload.connection?.deployment),
     apiVersion: normalizeString(payload.connection?.apiVersion)
   });
+  const deepseekInference =
+    providerId === 'deepseek'
+      ? stripUndefined({
+          thinking:
+            normalizeDeepSeekThinking(payload.inference?.deepseek?.thinking) ??
+            defaults.inference.deepseek?.thinking,
+          reasoningEffort: normalizeDeepSeekReasoningEffort(
+            payload.inference?.deepseek?.reasoningEffort
+          )
+        })
+      : undefined;
   const inference = stripUndefined({
-    temperature: normalizeTemperature(payload.inference?.temperature) ?? defaults.inference.temperature
+    temperature: normalizeTemperature(payload.inference?.temperature) ?? defaults.inference.temperature,
+    deepseek:
+      deepseekInference && Object.keys(deepseekInference).length
+        ? deepseekInference
+        : undefined
   });
 
   return {
@@ -1138,7 +1165,13 @@ export class ProviderManagementPanel {
           apiVersion: ''
         },
         inference: {
-          temperature: entry.defaults.inference.temperature
+          temperature: entry.defaults.inference.temperature,
+          deepseek: entry.id === 'deepseek'
+            ? {
+                thinking: entry.defaults.inference.deepseek && entry.defaults.inference.deepseek.thinking || 'disabled',
+                reasoningEffort: entry.defaults.inference.deepseek && entry.defaults.inference.deepseek.reasoningEffort || ''
+              }
+            : undefined
         }
       };
     }
@@ -1159,7 +1192,13 @@ export class ProviderManagementPanel {
         inference: {
           temperature: profile.inference && profile.inference.temperature !== undefined
             ? profile.inference.temperature
-            : 0.7
+            : 0.7,
+          deepseek: profile.providerId === 'deepseek'
+            ? {
+                thinking: profile.inference && profile.inference.deepseek && profile.inference.deepseek.thinking || 'disabled',
+                reasoningEffort: profile.inference && profile.inference.deepseek && profile.inference.deepseek.reasoningEffort || ''
+              }
+            : undefined
         }
       };
     }
@@ -1294,6 +1333,23 @@ export class ProviderManagementPanel {
       '</div>';
     }
 
+    function optionSelectField(label, id, value, options, config = {}) {
+      const hint = config.hint || '';
+      const full = config.full ? ' full' : '';
+      const disabled = config.disabled ? ' disabled' : '';
+      return '<div class="field' + full + '">' +
+        '<label for="' + id + '">' + label + '</label>' +
+        '<select id="' + id + '"' + disabled + '>' +
+          options.map((entry) =>
+            '<option value="' + escapeHtml(entry.value) + '"' + (entry.value === value ? ' selected' : '') + '>' +
+              escapeHtml(entry.label) +
+            '</option>'
+          ).join('') +
+        '</select>' +
+        (hint ? '<span class="field-hint">' + escapeHtml(hint) + '</span>' : '') +
+      '</div>';
+    }
+
     function modelPresetSelectField(providerEntry, value) {
       const presets = providerEntry.modelPresets || [];
       const customSelected = !value || !presets.includes(value);
@@ -1337,10 +1393,11 @@ export class ProviderManagementPanel {
         return draft;
       }
 
+      const providerId = getFormValue('providerId');
       return {
         id: draft.id,
         name: getFormValue('profileName'),
-        providerId: getFormValue('providerId'),
+        providerId,
         model: getModelFormValue(),
         apiKey: document.getElementById('apiKey') ? document.getElementById('apiKey').value : '',
         connection: {
@@ -1350,7 +1407,13 @@ export class ProviderManagementPanel {
           apiVersion: getFormValue('apiVersion')
         },
         inference: {
-          temperature: getFormValue('temperature')
+          temperature: getFormValue('temperature'),
+          deepseek: providerId === 'deepseek'
+            ? {
+                thinking: getFormValue('deepseekThinking') || 'disabled',
+                reasoningEffort: getFormValue('deepseekReasoningEffort')
+              }
+            : undefined
         }
       };
     }
@@ -1548,6 +1611,9 @@ export class ProviderManagementPanel {
       const showApiVersion = draft.providerId === 'azure-openai';
       const showDeployment = draft.providerId === 'azure-openai';
       const showApiKey = providerEntry.authScheme !== 'none';
+      const showDeepSeekInference = draft.providerId === 'deepseek';
+      const deepseekThinking = draft.inference.deepseek && draft.inference.deepseek.thinking || 'disabled';
+      const deepseekReasoningEffort = draft.inference.deepseek && draft.inference.deepseek.reasoningEffort || '';
       const baseUrlHint =
         draft.providerId === 'openai'
           ? 'Leave blank to use the OpenAI SDK default endpoint.'
@@ -1593,6 +1659,20 @@ export class ProviderManagementPanel {
           '<p>These settings affect generation behavior, not connectivity.</p>',
           '<div class="grid">',
             field('Temperature', 'temperature', draft.inference.temperature, { type: 'number', placeholder: '0.7' }),
+            showDeepSeekInference ? optionSelectField('DeepSeek Thinking', 'deepseekThinking', deepseekThinking, [
+              { value: 'disabled', label: 'Disabled' },
+              { value: 'enabled', label: 'Enabled' }
+            ], {
+              hint: 'Disabled keeps temperature effective for commit message generation.'
+            }) : '',
+            showDeepSeekInference ? optionSelectField('Reasoning Effort', 'deepseekReasoningEffort', deepseekReasoningEffort, [
+              { value: '', label: 'Default' },
+              { value: 'high', label: 'High' },
+              { value: 'max', label: 'Max' }
+            ], {
+              disabled: deepseekThinking !== 'enabled',
+              hint: 'Sent only when DeepSeek thinking is enabled.'
+            }) : '',
           '</div>',
         '</section>',
         '<section class="section">',
@@ -1633,7 +1713,10 @@ export class ProviderManagementPanel {
           name: keepCustomName ? currentDraft.name : nextDraft.name,
           model: keepCustomModel ? currentDraft.model : nextDraft.model,
           inference: {
-            temperature: currentDraft.inference?.temperature || nextDraft.inference.temperature
+            temperature: currentDraft.inference?.temperature || nextDraft.inference.temperature,
+            deepseek: nextProviderId === 'deepseek'
+              ? nextDraft.inference.deepseek
+              : undefined
           }
         };
         draftMode = draft.id ? 'selected' : 'catalog';
@@ -1685,6 +1768,20 @@ export class ProviderManagementPanel {
           customInput.value = draft.model;
         }
       });
+      const deepseekThinkingInput = document.getElementById('deepseekThinking');
+      if (deepseekThinkingInput) {
+        deepseekThinkingInput.addEventListener('change', (event) => {
+          const effortInput = document.getElementById('deepseekReasoningEffort');
+          if (!effortInput) {
+            return;
+          }
+
+          effortInput.disabled = event.target.value !== 'enabled';
+          if (effortInput.disabled) {
+            effortInput.value = '';
+          }
+        });
+      }
 
       [
         'profileName',
@@ -1696,7 +1793,9 @@ export class ProviderManagementPanel {
         'endpoint',
         'deployment',
         'apiVersion',
-        'temperature'
+        'temperature',
+        'deepseekThinking',
+        'deepseekReasoningEffort'
       ].forEach((id) => {
         const input = document.getElementById(id);
         if (input) {

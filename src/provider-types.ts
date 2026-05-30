@@ -21,8 +21,17 @@ export interface ProviderConnectionConfig {
   apiVersion?: string;
 }
 
+export type DeepSeekThinkingMode = 'enabled' | 'disabled';
+export type DeepSeekReasoningEffort = 'high' | 'max';
+
+export interface DeepSeekInferenceConfig {
+  thinking?: DeepSeekThinkingMode;
+  reasoningEffort?: DeepSeekReasoningEffort;
+}
+
 export interface ProviderInferenceConfig {
   temperature?: number;
+  deepseek?: DeepSeekInferenceConfig;
 }
 
 export interface ProviderProfile {
@@ -68,6 +77,14 @@ function normalizeTemperature(value: unknown): number | undefined {
   return value;
 }
 
+function normalizeDeepSeekThinking(value: unknown): DeepSeekThinkingMode | undefined {
+  return value === 'enabled' || value === 'disabled' ? value : undefined;
+}
+
+function normalizeDeepSeekReasoningEffort(value: unknown): DeepSeekReasoningEffort | undefined {
+  return value === 'high' || value === 'max' ? value : undefined;
+}
+
 function normalizeConnection(value: unknown): ProviderConnectionConfig | undefined {
   if (!value || typeof value !== 'object') {
     return undefined;
@@ -84,14 +101,29 @@ function normalizeConnection(value: unknown): ProviderConnectionConfig | undefin
   return Object.values(connection).some(Boolean) ? connection : undefined;
 }
 
-function normalizeInference(value: unknown): ProviderInferenceConfig | undefined {
+function normalizeInference(value: unknown, providerId: ProviderId): ProviderInferenceConfig | undefined {
   if (!value || typeof value !== 'object') {
     return undefined;
   }
 
   const raw = value as Record<string, unknown>;
+  const rawDeepSeek =
+    raw.deepseek && typeof raw.deepseek === 'object'
+      ? (raw.deepseek as Record<string, unknown>)
+      : undefined;
+  const deepseek =
+    providerId === 'deepseek' && rawDeepSeek
+      ? {
+          thinking: normalizeDeepSeekThinking(rawDeepSeek.thinking),
+          reasoningEffort: normalizeDeepSeekReasoningEffort(rawDeepSeek.reasoningEffort)
+        }
+      : undefined;
   const inference: ProviderInferenceConfig = {
-    temperature: normalizeTemperature(raw.temperature)
+    temperature: normalizeTemperature(raw.temperature),
+    deepseek:
+      deepseek && Object.values(deepseek).some((item) => item !== undefined)
+        ? deepseek
+        : undefined
   };
 
   return Object.values(inference).some((item) => item !== undefined) ? inference : undefined;
@@ -155,6 +187,6 @@ export function normalizeProviderProfile(raw: unknown): ProviderProfile | undefi
     model: normalizeString(record.model)!,
     auth: { scheme: authScheme },
     connection: normalizeConnection(record.connection),
-    inference: normalizeInference(record.inference)
+    inference: normalizeInference(record.inference, providerId)
   };
 }

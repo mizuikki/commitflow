@@ -1,5 +1,8 @@
 import OpenAI from 'openai';
-import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
+import type {
+  ChatCompletionCreateParamsNonStreaming,
+  ChatCompletionMessageParam
+} from 'openai/resources/chat/completions';
 import * as vscode from 'vscode';
 import { ResolvedProviderProfile } from './config';
 import { createOpenAIClient } from './api-utils';
@@ -43,6 +46,20 @@ type OpenAICompatibleMessage = ChatCompletionMessageParam & {
   content: string;
   name?: string;
 };
+
+type DeepSeekChatCompletionCreateParams = Omit<
+  ChatCompletionCreateParamsNonStreaming,
+  'reasoning_effort'
+> & {
+  thinking?: {
+    type: 'enabled' | 'disabled';
+  };
+  reasoning_effort?: 'high' | 'max';
+};
+
+type OpenAICompatibleChatCompletionPayload =
+  | ChatCompletionCreateParamsNonStreaming
+  | DeepSeekChatCompletionCreateParams;
 
 type OpenAICompatibleResponse = {
   choices?: Array<{
@@ -155,6 +172,33 @@ function sanitizeMessagesForLogging(messages: ChatCompletionMessageParam[]) {
   }));
 }
 
+export function buildOpenAIChatCompletionPayload(
+  messages: ChatCompletionMessageParam[],
+  profile: ResolvedProviderProfile['profile'],
+  options: ProviderRequestOptions = {}
+): OpenAICompatibleChatCompletionPayload {
+  const temperature = options.temperature ?? profile.inference?.temperature ?? 0.7;
+  const normalizedMessages = prepareMessagesForOpenAICompatibleAPI(messages);
+  const payload: DeepSeekChatCompletionCreateParams = {
+    model: profile.model,
+    messages: normalizedMessages,
+    temperature,
+    ...(options.maxOutputTokens !== undefined
+      ? { max_tokens: options.maxOutputTokens }
+      : {})
+  };
+
+  if (profile.providerId === 'deepseek') {
+    const thinking = profile.inference?.deepseek?.thinking ?? 'disabled';
+    payload.thinking = { type: thinking };
+    if (thinking === 'enabled' && profile.inference?.deepseek?.reasoningEffort) {
+      payload.reasoning_effort = profile.inference.deepseek.reasoningEffort;
+    }
+  }
+
+  return payload;
+}
+
 export function createOpenAIApi(resolvedProfile: ResolvedProviderProfile): OpenAI {
   if (
     resolvedProfile.profile.driverKind !== 'openai' &&
@@ -174,28 +218,23 @@ export async function requestOpenAIChatCompletion(
 ) {
   const openai = createOpenAIApi(resolvedProfile);
   const { profile } = resolvedProfile;
-  const temperature = options.temperature ?? profile.inference?.temperature ?? 0.7;
-
-  const normalizedMessages = prepareMessagesForOpenAICompatibleAPI(messages);
+  const payload = buildOpenAIChatCompletionPayload(messages, profile, options);
+  const deepseekPayload = payload as DeepSeekChatCompletionCreateParams;
   logDebug(
     'OpenAI-family payload prepared',
     {
       providerId: profile.providerId,
       model: profile.model,
-      temperature,
-      messageSummary: sanitizeMessagesForLogging(normalizedMessages)
+      temperature: payload.temperature,
+      deepseekThinking:
+        profile.providerId === 'deepseek' ? deepseekPayload.thinking?.type : undefined,
+      deepseekReasoningEffort:
+        profile.providerId === 'deepseek' ? deepseekPayload.reasoning_effort : undefined,
+      messageSummary: sanitizeMessagesForLogging(payload.messages)
     },
     resourceUri
   );
 
-  const payload = {
-    model: profile.model,
-    messages: normalizedMessages,
-    temperature,
-    ...(options.maxOutputTokens !== undefined
-      ? { max_tokens: options.maxOutputTokens }
-      : {})
-  };
   if (options.captureRenderedPrompt !== false) {
     recordLastRenderedPrompt(
       resolvedProfile,
@@ -205,7 +244,7 @@ export async function requestOpenAIChatCompletion(
     );
   }
 
-  return openai.chat.completions.create(payload);
+  return openai.chat.completions.create(payload as ChatCompletionCreateParamsNonStreaming);
 }
 
 export async function OpenAIChatAPI(
