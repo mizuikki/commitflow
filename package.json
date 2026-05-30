@@ -2,7 +2,7 @@
   "name": "commitflow",
   "displayName": "CommitFlow",
   "description": "Turn staged Git changes into clear Conventional Commit messages with OpenAI, Azure OpenAI, Anthropic, Gemini, and compatible providers.",
-  "version": "1.0.0-alpha.3",
+  "version": "1.0.0-alpha.4",
   "engines": {
     "node": ">=24",
     "vscode": "^1.53.0"
