@@ -33,6 +33,21 @@ suite('commands', () => {
     });
   });
 
+  suite('formatStagedDiffForPrompt', () => {
+    test('wraps staged diff in stable delimiters', async () => {
+      const { formatStagedDiffForPrompt } = await import('../../generate-commit-msg');
+      const diff = 'diff --git a/a.ts b/a.ts\n+const value = 1;';
+      const result = formatStagedDiffForPrompt(diff);
+
+      assert.ok(result.includes('Classify only the staged diff between these delimiters.'));
+      assert.ok(result.includes('---BEGIN COMMITFLOW STAGED DIFF---'));
+      assert.ok(result.includes('---END COMMITFLOW STAGED DIFF---'));
+      assert.ok(result.includes(diff));
+      assert.ok(result.indexOf('---BEGIN COMMITFLOW STAGED DIFF---') < result.indexOf(diff));
+      assert.ok(result.indexOf(diff) < result.indexOf('---END COMMITFLOW STAGED DIFF---'));
+    });
+  });
+
   suite('normalizeMessagesForOpenAICompatibleAPI', () => {
     let normalizeMessagesForOpenAICompatibleAPI: (messages: any[]) => any[];
     let prepareMessagesForOpenAICompatibleAPI: (messages: any[]) => any[];

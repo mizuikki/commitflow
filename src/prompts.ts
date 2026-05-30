@@ -140,6 +140,7 @@ function buildGitmojiSelectionGuidance(): string {
 - Add a new user-facing command -> ✨
 - Add an inspection/debugging command -> 🧐
 - Improve model-facing prompt rules -> 🐛, not ✨ or 📝
+- Improve commit message generation reliability -> 🐛, not 🔧 or ♻️
 - Change config to fix broken behavior -> 🐛, not 🔧
 - Add a CI workflow -> 👷; fix a failing CI workflow -> 💚
 - Upgrade a dependency -> ⬆️, not 📦️
@@ -211,20 +212,29 @@ export function buildPromptRuleChangeExamples(gitmojiPlacement: GitmojiPlacement
     case 'prefix':
       return [
         `- Good: ${getGitmojiEmojiByCode(':bug:')} fix(prompts): clarify feat selection for provider capabilities`,
+        `- Good: ${getGitmojiEmojiByCode(':bug:')} fix(prompts): clarify staged diff classification rules`,
         `- Bad: ${getGitmojiEmojiByCode(':memo:')} docs(commit): add feat type guidance for provider options`,
-        `- Bad: ${getGitmojiEmojiByCode(':wrench:')} chore(commit): add feat type selection rule`
+        `- Bad: ${getGitmojiEmojiByCode(':recycle:')} refactor(prompts): improve commit message generation guidance`,
+        `- Bad: ${getGitmojiEmojiByCode(':wrench:')} chore(prompts): refine commit message prompt rules`,
+        `- Bad: ${getGitmojiEmojiByCode(':sparkles:')} feat(commit): add staged diff delimiters and prompt refinements`
       ].join('\n');
     case 'suffix':
       return [
         `- Good: fix(prompts): ${getGitmojiEmojiByCode(':bug:')} clarify feat selection for provider capabilities`,
+        `- Good: fix(prompts): ${getGitmojiEmojiByCode(':bug:')} clarify staged diff classification rules`,
         `- Bad: docs(commit): ${getGitmojiEmojiByCode(':memo:')} add feat type guidance for provider options`,
-        `- Bad: chore(commit): ${getGitmojiEmojiByCode(':wrench:')} add feat type selection rule`
+        `- Bad: refactor(prompts): ${getGitmojiEmojiByCode(':recycle:')} improve commit message generation guidance`,
+        `- Bad: chore(prompts): ${getGitmojiEmojiByCode(':wrench:')} refine commit message prompt rules`,
+        `- Bad: feat(commit): ${getGitmojiEmojiByCode(':sparkles:')} add staged diff delimiters and prompt refinements`
       ].join('\n');
     default:
       return [
         '- Good: fix(prompts): clarify feat selection for provider capabilities',
+        '- Good: fix(prompts): clarify staged diff classification rules',
         '- Bad: docs(commit): add feat type guidance for provider options',
-        '- Bad: chore(commit): add feat type selection rule'
+        '- Bad: refactor(prompts): improve commit message generation guidance',
+        '- Bad: chore(prompts): refine commit message prompt rules',
+        '- Bad: feat(commit): add staged diff delimiters and prompt refinements'
       ].join('\n');
   }
 }

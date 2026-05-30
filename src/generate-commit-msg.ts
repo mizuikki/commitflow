@@ -13,6 +13,18 @@ import { beginCommitGeneration, endCommitGeneration } from './runtime-state';
 
 export { formatProviderErrorMessage } from './provider-error-utils';
 
+const STAGED_DIFF_BEGIN_DELIMITER = '---BEGIN COMMITFLOW STAGED DIFF---';
+const STAGED_DIFF_END_DELIMITER = '---END COMMITFLOW STAGED DIFF---';
+
+export function formatStagedDiffForPrompt(diff: string): string {
+  return [
+    'Classify only the staged diff between these delimiters.',
+    STAGED_DIFF_BEGIN_DELIMITER,
+    diff,
+    STAGED_DIFF_END_DELIMITER
+  ].join('\n');
+}
+
 async function generateWithProvider(
   resolvedProfile: Awaited<ReturnType<ConfigurationManager['getActiveProviderProfile']>>,
   messages: any[],
@@ -58,7 +70,7 @@ const generateCommitMessageChatCompletionPrompt = async (
 
   chatContextAsCompletionRequest.push({
     role: 'user',
-    content: diff
+    content: formatStagedDiffForPrompt(diff)
   });
   return chatContextAsCompletionRequest;
 };
