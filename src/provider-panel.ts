@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { createClientForModelListing, createOpenAIClient } from './api-utils';
 import { createAnthropicClient } from './anthropic-utils';
 import {
+  COMMITFLOW_NAMESPACE,
   ConfigKeys,
   ConfigurationManager,
   getConfigurationTargetForResource,
@@ -157,15 +158,7 @@ async function resolveDraftApiKey(
 }
 
 function getWorkspaceProfileId(configManager: ConfigurationManager, resourceUri?: vscode.Uri) {
-  if (!resourceUri) {
-    return undefined;
-  }
-
-  return configManager.getConfig<string>(
-    ConfigKeys.ACTIVE_PROVIDER_PROFILE_ID,
-    undefined,
-    resourceUri
-  );
+  return configManager.getActiveProviderProfileOverrideId(resourceUri);
 }
 
 function escapeHtml(value: string): string {
@@ -240,6 +233,7 @@ export class ProviderManagementPanel {
   private resourceUri?: vscode.Uri;
   private selectedProfileId?: string;
   private availableModels: string[] = [];
+  private readonly disposables: vscode.Disposable[] = [];
 
   private constructor(
     private readonly context: vscode.ExtensionContext,
@@ -250,7 +244,19 @@ export class ProviderManagementPanel {
     this.panel = panel;
     this.resourceUri = resourceUri;
 
+    this.disposables.push(
+      vscode.workspace.onDidChangeConfiguration((event) => {
+        if (
+          event.affectsConfiguration(`${COMMITFLOW_NAMESPACE}.${ConfigKeys.ACTIVE_PROVIDER_PROFILE_ID}`) ||
+          event.affectsConfiguration(`${COMMITFLOW_NAMESPACE}.${ConfigKeys.PROVIDER_PROFILES}`)
+        ) {
+          void this.refresh(this.selectedProfileId);
+        }
+      })
+    );
+
     this.panel.onDidDispose(() => {
+      this.disposables.forEach((disposable) => disposable.dispose());
       if (ProviderManagementPanel.currentPanel === this) {
         ProviderManagementPanel.currentPanel = undefined;
       }
@@ -350,13 +356,13 @@ export class ProviderManagementPanel {
     this.panel.webview.postMessage({
       type: 'state',
       payload: {
-        profiles: profileSummaries,
-        selectedProfileId: this.selectedProfileId,
-        activeProfileId,
-        workspaceProfileId,
-        resourceLabel: this.resourceUri?.fsPath,
-        availableModels: this.availableModels,
-        catalog: PROVIDER_CATALOG.map((entry) => ({
+          profiles: profileSummaries,
+          selectedProfileId: this.selectedProfileId,
+          activeProfileId: activeProfileId ?? null,
+          workspaceProfileId: workspaceProfileId ?? null,
+          resourceLabel: this.resourceUri?.fsPath ?? null,
+          availableModels: this.availableModels,
+          catalog: PROVIDER_CATALOG.map((entry) => ({
           id: entry.id,
           label: entry.label,
           description: entry.description,
@@ -486,11 +492,7 @@ export class ProviderManagementPanel {
       return;
     }
 
-    await this.configManager.setActiveProviderProfileId(
-      undefined,
-      getConfigurationTargetForResource(this.resourceUri),
-      this.resourceUri
-    );
+    await this.configManager.clearActiveProviderProfileOverride(this.resourceUri);
     await vscode.commands.executeCommand('commitflow.refreshStatusBar');
     await this.refresh(this.selectedProfileId);
   }
@@ -1960,7 +1962,11 @@ export class ProviderManagementPanel {
         state.modelTestDraftKey = undefined;
       }
 
-      Object.assign(state, message.payload);
+      Object.assign(state, {
+        activeProfileId: undefined,
+        workspaceProfileId: undefined,
+        resourceLabel: undefined
+      }, message.payload);
       const selected = getSelectedProfile();
       if (selected && (!draft || draftMode === 'selected' || draft.id === selected.id)) {
         draft = draftFromProfile(selected);

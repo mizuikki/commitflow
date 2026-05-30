@@ -332,6 +332,37 @@ export class ConfigurationManager {
     return this.getConfig<string>(ConfigKeys.ACTIVE_PROVIDER_PROFILE_ID, undefined, resourceUri);
   }
 
+  getActiveProviderProfileOverrideId(resourceUri?: vscode.Uri): string | undefined {
+    if (!resourceUri) {
+      return undefined;
+    }
+
+    const config = vscode.workspace.getConfiguration(COMMITFLOW_NAMESPACE, resourceUri);
+    const inspected = config.inspect<string>(ConfigKeys.ACTIVE_PROVIDER_PROFILE_ID);
+    return normalizeString(inspected?.workspaceFolderValue ?? inspected?.workspaceValue);
+  }
+
+  async clearActiveProviderProfileOverride(resourceUri?: vscode.Uri): Promise<void> {
+    if (!resourceUri) {
+      return;
+    }
+
+    const config = vscode.workspace.getConfiguration(COMMITFLOW_NAMESPACE, resourceUri);
+    const updateTargets = new Set<vscode.ConfigurationTarget>();
+
+    if (vscode.workspace.getWorkspaceFolder(resourceUri)) {
+      updateTargets.add(vscode.ConfigurationTarget.WorkspaceFolder);
+    }
+
+    if (vscode.workspace.workspaceFile || vscode.workspace.workspaceFolders?.length) {
+      updateTargets.add(vscode.ConfigurationTarget.Workspace);
+    }
+
+    for (const target of updateTargets) {
+      await config.update(ConfigKeys.ACTIVE_PROVIDER_PROFILE_ID, undefined, target);
+    }
+  }
+
   async setActiveProviderProfileId(
     profileId: string | undefined,
     target: vscode.ConfigurationTarget,
