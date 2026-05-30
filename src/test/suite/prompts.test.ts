@@ -89,7 +89,15 @@ suite('prompts', () => {
       assert.ok(result.includes(':sparkles:'));
       assert.ok(result.includes('Choose the emoji as a single-label classification task'));
       assert.ok(result.includes('Prefer outcome semantics over keyword matching'));
+      assert.ok(result.includes('Gitmoji Decision Table'));
+      assert.ok(result.includes('| Broken, incorrect, incompatible, or invalid behavior/output | 🐛 |'));
+      assert.ok(result.includes('| New user-facing command, setting, workflow, or API | ✨ |'));
+      assert.ok(result.includes('| Dependency add, remove, upgrade, downgrade, or pin | ➕ / ➖ / ⬆️ / ⬇️ / 📌 |'));
+      assert.ok(result.includes('| Security or privacy fix | 🔒️ |'));
+      assert.ok(result.includes('| Developer experience | 🧑‍💻 |'));
       assert.ok(result.includes('Fix duplicated prompt output heading -> 🐛, not 🎨'));
+      assert.ok(result.includes('Improve model-facing prompt rules -> 🐛, not ✨ or 📝'));
+      assert.ok(result.includes('Change config to fix broken behavior -> 🐛, not 🔧'));
     });
 
     test('returns suffix guidance when placement is suffix', async () => {
@@ -101,6 +109,13 @@ suite('prompts', () => {
       assert.ok(result.includes(':bug:'));
       assert.ok(result.includes('Do not use fixed mappings such as feat always using ✨'));
       assert.ok(result.includes('Add an inspection/debugging command -> 🧐'));
+      assert.ok(result.includes('| CI configuration | 👷 |'));
+      assert.ok(result.includes('| Broken CI fix | 💚 |'));
+      assert.ok(result.includes('| Types | 🏷️ |'));
+      assert.ok(result.includes('| Move or rename | 🚚 |'));
+      assert.ok(result.includes('| User experience or usability | 🚸 |'));
+      assert.ok(result.includes('Upgrade a dependency -> ⬆️, not 📦️'));
+      assert.ok(result.includes('Type-only changes -> 🏷️; refactor-only changes -> ♻️'));
     });
 
     test('returns no gitmoji reference when placement is none', async () => {
@@ -130,6 +145,36 @@ suite('prompts', () => {
       assert.ok(
         content.includes(
           'Changes to generated output, formatting, validation, prompts, or templates are behavior changes; use fix when they correct invalid, misleading, or incompatible output'
+        )
+      );
+      assert.ok(
+        content.includes(
+          'Prompt, template, validation, and generated-output instruction changes are not documentation changes unless the diff only updates user-facing docs such as README or API docs'
+        )
+      );
+      assert.ok(
+        content.includes(
+          'Prompt and template rule changes that improve model instruction quality, selection behavior, or output correctness are fixes, not features, unless they add a user-visible command, setting, workflow, or API'
+        )
+      );
+      assert.ok(
+        content.includes(
+          'Choose scope by the primary affected module, product area, or established repository scope'
+        )
+      );
+      assert.ok(
+        content.includes(
+          'Do not choose scope by emoji labels, type names, generic commit-message words, or nouns that only appear in the subject'
+        )
+      );
+      assert.ok(
+        content.includes(
+          'Use a prompt/prompts scope for prompt templates, prompt assembly, or model instruction guidance'
+        )
+      );
+      assert.ok(
+        content.includes(
+          'Use a gitmoji scope only when Gitmoji data, official references, emoji mapping, or Gitmoji-specific behavior is the primary implementation change'
         )
       );
       assert.ok(

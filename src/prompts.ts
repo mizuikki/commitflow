@@ -105,12 +105,45 @@ function buildGitmojiSelectionGuidance(): string {
 - If multiple emojis seem plausible, choose the one that explains why the change matters, not where the change happened
 - Do not use fixed mappings such as feat always using ✨ or fix always using 🐛
 
+### Gitmoji Decision Table
+
+| Primary outcome | Prefer |
+| --------------- | ------ |
+| Broken, incorrect, incompatible, or invalid behavior/output | 🐛 |
+| Small non-critical fix | 🩹 |
+| New user-facing command, setting, workflow, or API | ✨ |
+| Docs-only README, API docs, or user documentation | 📝 |
+| Tests-only changes | ✅ |
+| Refactor without behavior change | ♻️ |
+| Code structure or formatting only | 🎨 |
+| Performance improvement | ⚡️ |
+| Configuration, settings, or tool metadata as the primary outcome | 🔧 |
+| Development scripts | 🔨 |
+| CI configuration | 👷 |
+| Broken CI fix | 💚 |
+| Dependency add, remove, upgrade, downgrade, or pin | ➕ / ➖ / ⬆️ / ⬇️ / 📌 |
+| Build artifacts, packages, or compiled files | 📦️ |
+| Security or privacy fix | 🔒️ |
+| Secrets | 🔐 |
+| Types | 🏷️ |
+| Internationalization or localization | 🌐 |
+| Move or rename | 🚚 |
+| Remove code or files | 🔥 |
+| Remove dead code | ⚰️ |
+| Developer experience | 🧑‍💻 |
+| User experience or usability | 🚸 |
+
 ### Gitmoji Disambiguation Examples
 
 - Fix duplicated prompt output heading -> 🐛, not 🎨
 - Reformat source code without behavior change -> 🎨
 - Add a new user-facing command -> ✨
 - Add an inspection/debugging command -> 🧐
+- Improve model-facing prompt rules -> 🐛, not ✨ or 📝
+- Change config to fix broken behavior -> 🐛, not 🔧
+- Add a CI workflow -> 👷; fix a failing CI workflow -> 💚
+- Upgrade a dependency -> ⬆️, not 📦️
+- Type-only changes -> 🏷️; refactor-only changes -> ♻️
 - Add tests only -> ✅
 - Update README only -> 📝`;
 }
