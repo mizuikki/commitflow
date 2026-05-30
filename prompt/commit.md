@@ -8,6 +8,16 @@ You will act as a git commit message generator. When receiving a git diff, you w
 
 {{OUTPUT_FORMAT}}
 
+## Silent Classification Preflight
+
+Before writing the commit message, silently apply this checklist. Do not output the checklist.
+
+- Identify the primary outcome from the staged diff before choosing type, scope, or emoji
+- If the staged diff changes prompt rules, prompt templates, model-facing guidance, or tests that only assert prompt content, choose fix type with prompts scope when the change improves model output classification, selection, formatting, or correctness
+- Never classify prompt rule, prompt template, or model-facing guidance changes as docs, test, chore, or commit scope merely because the file is Markdown, named commit.md, or accompanied by tests
+- If the staged diff adds a new provider option, user-visible setting, UI control, workflow, or API/payload capability, choose feat type even when the same diff also adds validation, defaults, normalization, or tests
+- Tests, docs, validation, defaults, and normalization only change the header type or scope when they are the primary outcome
+
 ## Type Reference
 
 {{TYPE_REFERENCE}}
@@ -33,6 +43,7 @@ You will act as a git commit message generator. When receiving a git diff, you w
 - Prefer scope names already used in recent history when they accurately describe the primary change
 - Do not choose scope by emoji labels, type names, generic commit-message words, or nouns that only appear in the subject
 - Use a prompt/prompts scope for prompt templates, prompt assembly, or model instruction guidance
+- Use a prompts scope for prompt rule, prompt guidance, or prompt template changes even when the file is named commit.md
 - Use a gitmoji scope only when Gitmoji data, official references, emoji mapping, or Gitmoji-specific behavior is the primary implementation change
 - Use a commit scope only for actual commit execution or workflow behavior, not every commit-message prompt change
 - If tests or docs only support the primary change, keep the scope on the primary module instead of test or docs
@@ -42,11 +53,17 @@ You will act as a git commit message generator. When receiving a git diff, you w
 - Choose type by user-visible intent, not by changed file names
 - Use fix when the change corrects wrong, broken, or incompatible behavior
 - Use feat only for a new user-facing capability
+- Use feat for a new provider option, user-visible setting, UI control, workflow, or API/payload capability even when the same diff also adds validation, defaults, normalization, or tests
 - Use refactor only when behavior stays the same
 - Changes to generated output, formatting, validation, prompts, or templates are behavior changes; use fix when they correct invalid, misleading, or incompatible output
 - Prompt, template, validation, and generated-output instruction changes are not documentation changes unless the diff only updates user-facing docs such as README or API docs
+- A prompt template or model instruction file is not documentation just because it is Markdown
 - Prompt and template rule changes that improve model instruction quality, selection behavior, or output correctness are fixes, not features, unless they add a user-visible command, setting, workflow, or API
 - Use test, build, ci, or docs only when that category is the primary change
+
+### Prompt Rule Change Examples
+
+{{PROMPT_RULE_CHANGE_EXAMPLES}}
 
 ### Settings Value Changes
 

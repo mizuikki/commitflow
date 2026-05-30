@@ -126,6 +126,26 @@ suite('prompts', () => {
     });
   });
 
+  suite('buildPromptRuleChangeExamples', () => {
+    test('returns examples without emoji when placement is none', async () => {
+      const { buildPromptRuleChangeExamples } = await import('../../prompts');
+      const result = buildPromptRuleChangeExamples('none' as any);
+
+      assert.ok(result.includes('Good: fix(prompts): clarify feat selection'));
+      assert.ok(result.includes('Bad: docs(commit): add feat type guidance'));
+      assert.ok(!result.includes('🐛'));
+    });
+
+    test('returns prefix emoji examples when placement is prefix', async () => {
+      const { buildPromptRuleChangeExamples } = await import('../../prompts');
+      const result = buildPromptRuleChangeExamples('prefix' as any);
+
+      assert.ok(result.includes('Good: 🐛 fix(prompts): clarify feat selection'));
+      assert.ok(result.includes('Bad: 📝 docs(commit): add feat type guidance'));
+      assert.ok(result.includes('Bad: 🔧 chore(commit): add feat type selection'));
+    });
+  });
+
   suite('getMainCommitPrompt', () => {
     test('returns array with system role message', async () => {
       const { getMainCommitPrompt } = await import('../../prompts');
@@ -159,6 +179,26 @@ suite('prompts', () => {
       );
       assert.ok(
         content.includes(
+          'Use feat for a new provider option, user-visible setting, UI control, workflow, or API/payload capability even when the same diff also adds validation, defaults, normalization, or tests'
+        )
+      );
+      assert.ok(
+        content.includes(
+          'Before writing the commit message, silently apply this checklist. Do not output the checklist.'
+        )
+      );
+      assert.ok(
+        content.includes(
+          'If the staged diff changes prompt rules, prompt templates, model-facing guidance, or tests that only assert prompt content, choose fix type with prompts scope'
+        )
+      );
+      assert.ok(
+        content.includes(
+          'Never classify prompt rule, prompt template, or model-facing guidance changes as docs, test, chore, or commit scope merely because the file is Markdown, named commit.md, or accompanied by tests'
+        )
+      );
+      assert.ok(
+        content.includes(
           'Choose scope by the primary affected module, product area, or established repository scope'
         )
       );
@@ -174,7 +214,32 @@ suite('prompts', () => {
       );
       assert.ok(
         content.includes(
+          'Use a prompts scope for prompt rule, prompt guidance, or prompt template changes even when the file is named commit.md'
+        )
+      );
+      assert.ok(
+        content.includes(
           'Use a gitmoji scope only when Gitmoji data, official references, emoji mapping, or Gitmoji-specific behavior is the primary implementation change'
+        )
+      );
+      assert.ok(
+        content.includes(
+          'A prompt template or model instruction file is not documentation just because it is Markdown'
+        )
+      );
+      assert.ok(
+        content.includes(
+          'Good: fix(prompts): clarify feat selection for provider capabilities'
+        )
+      );
+      assert.ok(
+        content.includes(
+          'Bad: docs(commit): add feat type guidance for provider options'
+        )
+      );
+      assert.ok(
+        content.includes(
+          'Bad: chore(commit): add feat type selection rule'
         )
       );
       assert.ok(

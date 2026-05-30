@@ -206,6 +206,29 @@ export function buildSettingsActionExamples(gitmojiPlacement: GitmojiPlacement):
   }
 }
 
+export function buildPromptRuleChangeExamples(gitmojiPlacement: GitmojiPlacement): string {
+  switch (gitmojiPlacement) {
+    case 'prefix':
+      return [
+        `- Good: ${getGitmojiEmojiByCode(':bug:')} fix(prompts): clarify feat selection for provider capabilities`,
+        `- Bad: ${getGitmojiEmojiByCode(':memo:')} docs(commit): add feat type guidance for provider options`,
+        `- Bad: ${getGitmojiEmojiByCode(':wrench:')} chore(commit): add feat type selection rule`
+      ].join('\n');
+    case 'suffix':
+      return [
+        `- Good: fix(prompts): ${getGitmojiEmojiByCode(':bug:')} clarify feat selection for provider capabilities`,
+        `- Bad: docs(commit): ${getGitmojiEmojiByCode(':memo:')} add feat type guidance for provider options`,
+        `- Bad: chore(commit): ${getGitmojiEmojiByCode(':wrench:')} add feat type selection rule`
+      ].join('\n');
+    default:
+      return [
+        '- Good: fix(prompts): clarify feat selection for provider capabilities',
+        '- Bad: docs(commit): add feat type guidance for provider options',
+        '- Bad: chore(commit): add feat type selection rule'
+      ].join('\n');
+  }
+}
+
 export function buildExample(language: string, gitmojiPlacement: GitmojiPlacement): string {
   const exampleHeader =
     gitmojiPlacement === 'prefix'
@@ -242,6 +265,7 @@ export async function buildCommitPrompt(
     OUTPUT_FORMAT: buildOutputFormat(gitmojiPlacement),
     TYPE_REFERENCE: buildCommitTypeReferenceTable(),
     GITMOJI_RULES: buildGitmojiRules(gitmojiPlacement),
+    PROMPT_RULE_CHANGE_EXAMPLES: buildPromptRuleChangeExamples(gitmojiPlacement),
     SETTINGS_ACTION_EXAMPLES: buildSettingsActionExamples(gitmojiPlacement),
     EXAMPLE: buildExample(language, gitmojiPlacement)
   };
