@@ -194,6 +194,10 @@ export function supportsProviderReasoning(providerId: ProviderId): boolean {
   return OPENAI_COMPATIBLE_REASONING_PROVIDER_IDS.includes(providerId);
 }
 
+export function supportsProviderReasoningDisabled(providerId: ProviderId, model: string): boolean {
+  return !(providerId === 'groq' && /gpt-oss/i.test(model));
+}
+
 export function getProviderReasoningEfforts(providerId: ProviderId): ProviderReasoningEffort[] {
   return [...(getProviderCatalogEntry(providerId).reasoningEfforts ?? [])];
 }

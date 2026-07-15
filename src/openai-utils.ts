@@ -9,7 +9,10 @@ import { createOpenAIClient } from './api-utils';
 import { logDebug } from './logger';
 import { recordLastRenderedPrompt } from './prompt-inspection';
 import { ProviderRequestOptions } from './provider-request-options';
-import { supportsProviderReasoning } from './provider-registry';
+import {
+  supportsProviderReasoning,
+  supportsProviderReasoningDisabled
+} from './provider-registry';
 import { ProviderReasoningEffort } from './provider-types';
 
 function coerceChatMessageContentToString(content: unknown): string {
@@ -212,7 +215,9 @@ export function buildOpenAIChatCompletionPayload(
         };
       }
     } else if (mode === 'disabled') {
-      payload.reasoning_effort = 'none';
+      if (supportsProviderReasoningDisabled(profile.providerId, profile.model)) {
+        payload.reasoning_effort = 'none';
+      }
     } else if (effort) {
       payload.reasoning_effort = effort;
     } else if (mode === 'enabled') {

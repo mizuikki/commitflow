@@ -266,6 +266,24 @@ suite('commands', () => {
 
       assert.strictEqual((payload as any).reasoning_effort, 'medium');
     });
+
+    test('buildOpenAIChatCompletionPayload omits unsupported Groq GPT-OSS disabled reasoning', async () => {
+      const { buildOpenAIChatCompletionPayload } = await import('../../openai-utils');
+      const payload = buildOpenAIChatCompletionPayload(
+        [{ role: 'user', content: 'hello' }],
+        {
+          id: 'profile-1',
+          name: 'Groq GPT-OSS',
+          providerId: 'groq',
+          driverKind: 'openai',
+          model: 'openai/gpt-oss-120b',
+          auth: { scheme: 'bearer' },
+          inference: { reasoning: { mode: 'disabled', effort: 'high' } }
+        }
+      );
+
+      assert.strictEqual((payload as any).reasoning_effort, undefined);
+    });
   });
 
   suite('validateTemperatureInput', () => {

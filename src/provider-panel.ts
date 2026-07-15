@@ -15,6 +15,7 @@ import {
   getProviderReasoningEfforts,
   supportsModelListing,
   supportsProviderReasoning,
+  supportsProviderReasoningDisabled,
   validateProviderProfile
 } from './provider-registry';
 import {
@@ -127,6 +128,7 @@ function hydrateProfileInput(payload: ProviderDraftPayload): ProviderProfileInpu
 
   // Merge the incoming draft with provider defaults so the panel can save partial edits.
   const defaults = createDefaultProfileDraft(providerId as any);
+  const model = normalizeString(payload.model) ?? defaults.model ?? '';
   const connection = stripUndefined({
     ...defaults.connection,
     baseURL: normalizeString(payload.connection?.baseURL) ?? defaults.connection.baseURL,
@@ -142,15 +144,23 @@ function hydrateProfileInput(payload: ProviderDraftPayload): ProviderProfileInpu
             defaults.inference.deepseek?.thinking,
           reasoningEffort: normalizeDeepSeekReasoningEffort(
             payload.inference?.deepseek?.reasoningEffort
-          )
+            )
         })
       : undefined;
+  const configuredReasoningMode = normalizeReasoningMode(payload.inference?.reasoning?.mode) ??
+    defaults.inference.reasoning?.mode;
+  const unsupportedDisabledReasoning = configuredReasoningMode === 'disabled' &&
+    !supportsProviderReasoningDisabled(
+      providerId as ProviderProfile['providerId'],
+      model
+    );
   const genericReasoning =
     supportsProviderReasoning(providerId as ProviderProfile['providerId'])
       ? stripUndefined({
-          mode: normalizeReasoningMode(payload.inference?.reasoning?.mode) ??
-            defaults.inference.reasoning?.mode,
-          effort: normalizeReasoningEffort(payload.inference?.reasoning?.effort)
+          mode: unsupportedDisabledReasoning ? 'default' : configuredReasoningMode,
+          effort: unsupportedDisabledReasoning
+            ? undefined
+            : normalizeReasoningEffort(payload.inference?.reasoning?.effort)
         })
       : undefined;
   const inference = stripUndefined({
@@ -170,7 +180,7 @@ function hydrateProfileInput(payload: ProviderDraftPayload): ProviderProfileInpu
     name: normalizeString(payload.name) ?? '',
     providerId: providerId as ProviderProfile['providerId'],
     driverKind: defaults.driverKind,
-    model: normalizeString(payload.model) ?? defaults.model ?? '',
+    model,
     auth: {
       scheme: defaults.authScheme
     },
@@ -1189,6 +1199,10 @@ export class ProviderManagementPanel {
       return ['openai', 'azure-openai', 'openrouter', 'groq', 'ollama', 'lmstudio'].includes(providerId);
     }
 
+    function supportsReasoningDisabled(providerId, model) {
+      return !(providerId === 'groq' && /gpt-oss/i.test(String(model || '')));
+    }
+
     function getSelectedProfile() {
       return state.profiles.find((profile) => profile.id === state.selectedProfileId);
     }
@@ -1447,6 +1461,31 @@ export class ProviderManagementPanel {
       return getFormValue('customModel');
     }
 
+    function refreshReasoningModeOptions() {
+      const input = document.getElementById('reasoningMode');
+      if (!input) {
+        return;
+      }
+
+      const currentValue = input.value;
+      const providerId = getFormValue('providerId');
+      const model = getModelFormValue();
+      const options = [
+        { value: 'default', label: 'Provider Default' },
+        ...(supportsReasoningDisabled(providerId, model)
+          ? [{ value: 'disabled', label: 'Disabled' }]
+          : []),
+        { value: 'enabled', label: 'Enabled' }
+      ];
+
+      input.innerHTML = options.map((option) =>
+        '<option value="' + escapeHtml(option.value) + '">' + escapeHtml(option.label) + '</option>'
+      ).join('');
+      input.value = options.some((option) => option.value === currentValue)
+        ? currentValue
+        : 'default';
+    }
+
     function collectDraftFromForm() {
       if (!document.getElementById('profileName')) {
         return draft;
@@ -1679,7 +1718,17 @@ export class ProviderManagementPanel {
       const showReasoning = supportsReasoning(draft.providerId);
       const showDeepSeekInference = draft.providerId === 'deepseek';
       const reasoningMode = draft.inference.reasoning && draft.inference.reasoning.mode || 'default';
-      const reasoningEffort = draft.inference.reasoning && draft.inference.reasoning.effort || '';
+      const reasoningDisabledSupported = supportsReasoningDisabled(draft.providerId, draft.model);
+      const reasoningEffort = reasoningDisabledSupported
+        ? draft.inference.reasoning && draft.inference.reasoning.effort || ''
+        : '';
+      const reasoningModeOptions = [
+        { value: 'default', label: 'Provider Default' },
+        ...(reasoningDisabledSupported
+          ? [{ value: 'disabled', label: 'Disabled' }]
+          : []),
+        { value: 'enabled', label: 'Enabled' }
+      ];
       const deepseekThinking = draft.inference.deepseek && draft.inference.deepseek.thinking || 'disabled';
       const deepseekReasoningEffort = draft.inference.deepseek && draft.inference.deepseek.reasoningEffort || '';
       const baseUrlHint =
@@ -1727,12 +1776,10 @@ export class ProviderManagementPanel {
           '<p>These settings affect generation behavior, not connectivity.</p>',
           '<div class="grid">',
             field('Temperature', 'temperature', draft.inference.temperature, { type: 'number', placeholder: '0.7' }),
-            showReasoning ? optionSelectField('Thinking', 'reasoningMode', reasoningMode, [
-              { value: 'default', label: 'Provider Default' },
-              { value: 'disabled', label: 'Disabled' },
-              { value: 'enabled', label: 'Enabled' }
-            ], {
-              hint: 'Provider Default leaves the reasoning setting out of the request.'
+            showReasoning ? optionSelectField('Thinking', 'reasoningMode', reasoningMode, reasoningModeOptions, {
+              hint: reasoningDisabledSupported
+                ? 'Provider Default leaves the reasoning setting out of the request.'
+                : 'This model cannot disable reasoning; use Provider Default or choose an effort.'
             }) : '',
             showReasoning ? optionSelectField('Reasoning Effort', 'reasoningEffort', reasoningEffort, [
               { value: '', label: 'Default' }
@@ -1856,6 +1903,7 @@ export class ProviderManagementPanel {
         if (useCustom && !customInput.value && draft.model && !currentModelPresets.includes(draft.model)) {
           customInput.value = draft.model;
         }
+        refreshReasoningModeOptions();
       });
       const deepseekThinkingInput = document.getElementById('deepseekThinking');
       if (deepseekThinkingInput) {
@@ -1907,10 +1955,16 @@ export class ProviderManagementPanel {
           input.addEventListener('input', () => {
             clearModelTestState();
             schedulePreviewUpdate();
+            if (id === 'customModel') {
+              refreshReasoningModeOptions();
+            }
           });
           input.addEventListener('change', () => {
             clearModelTestState();
             schedulePreviewUpdate();
+            if (id === 'modelPreset' || id === 'customModel') {
+              refreshReasoningModeOptions();
+            }
           });
         }
       });
