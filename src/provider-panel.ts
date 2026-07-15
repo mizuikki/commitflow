@@ -12,7 +12,10 @@ import {
   PROVIDER_CATALOG,
   createDefaultProfileDraft,
   getProviderLabel,
+  getProviderReasoningEfforts,
   supportsModelListing,
+  supportsProviderReasoning,
+  supportsProviderReasoningDisabled,
   validateProviderProfile
 } from './provider-registry';
 import {
@@ -21,7 +24,13 @@ import {
 } from './provider-model-presets';
 import { createGeminiAPIClient } from './gemini-utils';
 import { ProviderModelTestResult, testProviderModelResponse } from './provider-model-test';
-import { ProviderProfile, ProviderProfileInput, ResolvedProviderProfile } from './provider-types';
+import {
+  ProviderProfile,
+  ProviderProfileInput,
+  ProviderReasoningEffort,
+  ProviderReasoningMode,
+  ResolvedProviderProfile
+} from './provider-types';
 
 type PanelOptions = {
   resourceUri?: vscode.Uri;
@@ -43,6 +52,10 @@ type ProviderDraftPayload = {
   };
   inference?: {
     temperature?: number | string;
+    reasoning?: {
+      mode?: string;
+      effort?: string;
+    };
     deepseek?: {
       thinking?: string;
       reasoningEffort?: string;
@@ -86,6 +99,21 @@ function normalizeDeepSeekReasoningEffort(value: unknown): 'high' | 'max' | unde
   return value === 'high' || value === 'max' ? value : undefined;
 }
 
+function normalizeReasoningMode(value: unknown): ProviderReasoningMode | undefined {
+  return value === 'default' || value === 'disabled' || value === 'enabled' ? value : undefined;
+}
+
+function normalizeReasoningEffort(value: unknown): ProviderReasoningEffort | undefined {
+  return value === 'minimal' ||
+    value === 'low' ||
+    value === 'medium' ||
+    value === 'high' ||
+    value === 'xhigh' ||
+    value === 'max'
+    ? value
+    : undefined;
+}
+
 function stripUndefined<T extends object>(value: T): T {
   return Object.fromEntries(
     Object.entries(value).filter(([, item]) => item !== undefined)
@@ -100,6 +128,7 @@ function hydrateProfileInput(payload: ProviderDraftPayload): ProviderProfileInpu
 
   // Merge the incoming draft with provider defaults so the panel can save partial edits.
   const defaults = createDefaultProfileDraft(providerId as any);
+  const model = normalizeString(payload.model) ?? defaults.model ?? '';
   const connection = stripUndefined({
     ...defaults.connection,
     baseURL: normalizeString(payload.connection?.baseURL) ?? defaults.connection.baseURL,
@@ -115,11 +144,31 @@ function hydrateProfileInput(payload: ProviderDraftPayload): ProviderProfileInpu
             defaults.inference.deepseek?.thinking,
           reasoningEffort: normalizeDeepSeekReasoningEffort(
             payload.inference?.deepseek?.reasoningEffort
-          )
+            )
+        })
+      : undefined;
+  const configuredReasoningMode = normalizeReasoningMode(payload.inference?.reasoning?.mode) ??
+    defaults.inference.reasoning?.mode;
+  const unsupportedDisabledReasoning = configuredReasoningMode === 'disabled' &&
+    !supportsProviderReasoningDisabled(
+      providerId as ProviderProfile['providerId'],
+      model
+    );
+  const genericReasoning =
+    supportsProviderReasoning(providerId as ProviderProfile['providerId'])
+      ? stripUndefined({
+          mode: unsupportedDisabledReasoning ? 'default' : configuredReasoningMode,
+          effort: unsupportedDisabledReasoning
+            ? undefined
+            : normalizeReasoningEffort(payload.inference?.reasoning?.effort)
         })
       : undefined;
   const inference = stripUndefined({
     temperature: normalizeTemperature(payload.inference?.temperature) ?? defaults.inference.temperature,
+    reasoning:
+      genericReasoning && Object.keys(genericReasoning).length
+        ? genericReasoning
+        : undefined,
     deepseek:
       deepseekInference && Object.keys(deepseekInference).length
         ? deepseekInference
@@ -131,7 +180,7 @@ function hydrateProfileInput(payload: ProviderDraftPayload): ProviderProfileInpu
     name: normalizeString(payload.name) ?? '',
     providerId: providerId as ProviderProfile['providerId'],
     driverKind: defaults.driverKind,
-    model: normalizeString(payload.model) ?? defaults.model ?? '',
+    model,
     auth: {
       scheme: defaults.authScheme
     },
@@ -370,6 +419,7 @@ export class ProviderManagementPanel {
           driverKind: entry.driverKind,
           authScheme: entry.authScheme,
           supportsModelListing: entry.supportsModelListing,
+          reasoningEfforts: getProviderReasoningEfforts(entry.id),
           recommendedModel: getRecommendedProviderModel(entry.id),
           modelPresets: getProviderModelPresets(entry.id),
           defaults: createDefaultProfileDraft(entry.id),
@@ -1107,7 +1157,8 @@ export class ProviderManagementPanel {
           endpoint: nextDraft.connection && nextDraft.connection.endpoint || '',
           deployment: nextDraft.connection && nextDraft.connection.deployment || '',
           apiVersion: nextDraft.connection && nextDraft.connection.apiVersion || ''
-        }
+        },
+        inference: nextDraft.inference || {}
       });
     }
 
@@ -1144,6 +1195,14 @@ export class ProviderManagementPanel {
       return state.catalog.find((entry) => entry.id === providerId);
     }
 
+    function supportsReasoning(providerId) {
+      return ['openai', 'azure-openai', 'openrouter', 'groq', 'ollama', 'lmstudio'].includes(providerId);
+    }
+
+    function supportsReasoningDisabled(providerId, model) {
+      return !(providerId === 'groq' && /gpt-oss/i.test(String(model || '')));
+    }
+
     function getSelectedProfile() {
       return state.profiles.find((profile) => profile.id === state.selectedProfileId);
     }
@@ -1168,6 +1227,12 @@ export class ProviderManagementPanel {
         },
         inference: {
           temperature: entry.defaults.inference.temperature,
+          reasoning: supportsReasoning(entry.id) && entry.reasoningEfforts && entry.reasoningEfforts.length
+            ? {
+                mode: entry.defaults.inference.reasoning && entry.defaults.inference.reasoning.mode || 'default',
+                effort: entry.defaults.inference.reasoning && entry.defaults.inference.reasoning.effort || ''
+              }
+            : undefined,
           deepseek: entry.id === 'deepseek'
             ? {
                 thinking: entry.defaults.inference.deepseek && entry.defaults.inference.deepseek.thinking || 'disabled',
@@ -1195,6 +1260,12 @@ export class ProviderManagementPanel {
           temperature: profile.inference && profile.inference.temperature !== undefined
             ? profile.inference.temperature
             : 0.7,
+          reasoning: supportsReasoning(profile.providerId)
+            ? {
+                mode: profile.inference && profile.inference.reasoning && profile.inference.reasoning.mode || 'default',
+                effort: profile.inference && profile.inference.reasoning && profile.inference.reasoning.effort || ''
+              }
+            : undefined,
           deepseek: profile.providerId === 'deepseek'
             ? {
                 thinking: profile.inference && profile.inference.deepseek && profile.inference.deepseek.thinking || 'disabled',
@@ -1390,6 +1461,31 @@ export class ProviderManagementPanel {
       return getFormValue('customModel');
     }
 
+    function refreshReasoningModeOptions() {
+      const input = document.getElementById('reasoningMode');
+      if (!input) {
+        return;
+      }
+
+      const currentValue = input.value;
+      const providerId = getFormValue('providerId');
+      const model = getModelFormValue();
+      const options = [
+        { value: 'default', label: 'Provider Default' },
+        ...(supportsReasoningDisabled(providerId, model)
+          ? [{ value: 'disabled', label: 'Disabled' }]
+          : []),
+        { value: 'enabled', label: 'Enabled' }
+      ];
+
+      input.innerHTML = options.map((option) =>
+        '<option value="' + escapeHtml(option.value) + '">' + escapeHtml(option.label) + '</option>'
+      ).join('');
+      input.value = options.some((option) => option.value === currentValue)
+        ? currentValue
+        : 'default';
+    }
+
     function collectDraftFromForm() {
       if (!document.getElementById('profileName')) {
         return draft;
@@ -1410,6 +1506,12 @@ export class ProviderManagementPanel {
         },
         inference: {
           temperature: getFormValue('temperature'),
+          reasoning: supportsReasoning(providerId)
+            ? {
+                mode: getFormValue('reasoningMode') || 'default',
+                effort: getFormValue('reasoningEffort')
+              }
+            : undefined,
           deepseek: providerId === 'deepseek'
             ? {
                 thinking: getFormValue('deepseekThinking') || 'disabled',
@@ -1613,7 +1715,20 @@ export class ProviderManagementPanel {
       const showApiVersion = draft.providerId === 'azure-openai';
       const showDeployment = draft.providerId === 'azure-openai';
       const showApiKey = providerEntry.authScheme !== 'none';
+      const showReasoning = supportsReasoning(draft.providerId);
       const showDeepSeekInference = draft.providerId === 'deepseek';
+      const reasoningMode = draft.inference.reasoning && draft.inference.reasoning.mode || 'default';
+      const reasoningDisabledSupported = supportsReasoningDisabled(draft.providerId, draft.model);
+      const reasoningEffort = reasoningDisabledSupported
+        ? draft.inference.reasoning && draft.inference.reasoning.effort || ''
+        : '';
+      const reasoningModeOptions = [
+        { value: 'default', label: 'Provider Default' },
+        ...(reasoningDisabledSupported
+          ? [{ value: 'disabled', label: 'Disabled' }]
+          : []),
+        { value: 'enabled', label: 'Enabled' }
+      ];
       const deepseekThinking = draft.inference.deepseek && draft.inference.deepseek.thinking || 'disabled';
       const deepseekReasoningEffort = draft.inference.deepseek && draft.inference.deepseek.reasoningEffort || '';
       const baseUrlHint =
@@ -1661,6 +1776,22 @@ export class ProviderManagementPanel {
           '<p>These settings affect generation behavior, not connectivity.</p>',
           '<div class="grid">',
             field('Temperature', 'temperature', draft.inference.temperature, { type: 'number', placeholder: '0.7' }),
+            showReasoning ? optionSelectField('Thinking', 'reasoningMode', reasoningMode, reasoningModeOptions, {
+              hint: reasoningDisabledSupported
+                ? 'Provider Default leaves the reasoning setting out of the request.'
+                : 'This model cannot disable reasoning; use Provider Default or choose an effort.'
+            }) : '',
+            showReasoning ? optionSelectField('Reasoning Effort', 'reasoningEffort', reasoningEffort, [
+              { value: '', label: 'Default' }
+            ].concat((providerEntry.reasoningEfforts || []).map((effort) => ({
+              value: effort,
+              label: effort.charAt(0).toUpperCase() + effort.slice(1)
+            }))), {
+              disabled: reasoningMode === 'disabled',
+              hint: reasoningMode === 'disabled'
+                ? 'Disabled maps to the provider reasoning off value.'
+                : 'The available values depend on the provider and model.'
+            }) : '',
             showDeepSeekInference ? optionSelectField('DeepSeek Thinking', 'deepseekThinking', deepseekThinking, [
               { value: 'disabled', label: 'Disabled' },
               { value: 'enabled', label: 'Enabled' }
@@ -1716,6 +1847,9 @@ export class ProviderManagementPanel {
           model: keepCustomModel ? currentDraft.model : nextDraft.model,
           inference: {
             temperature: currentDraft.inference?.temperature || nextDraft.inference.temperature,
+            reasoning: supportsReasoning(nextProviderId)
+              ? nextDraft.inference.reasoning
+              : undefined,
             deepseek: nextProviderId === 'deepseek'
               ? nextDraft.inference.deepseek
               : undefined
@@ -1769,6 +1903,7 @@ export class ProviderManagementPanel {
         if (useCustom && !customInput.value && draft.model && !currentModelPresets.includes(draft.model)) {
           customInput.value = draft.model;
         }
+        refreshReasoningModeOptions();
       });
       const deepseekThinkingInput = document.getElementById('deepseekThinking');
       if (deepseekThinkingInput) {
@@ -1779,6 +1914,20 @@ export class ProviderManagementPanel {
           }
 
           effortInput.disabled = event.target.value !== 'enabled';
+          if (effortInput.disabled) {
+            effortInput.value = '';
+          }
+        });
+      }
+      const reasoningModeInput = document.getElementById('reasoningMode');
+      if (reasoningModeInput) {
+        reasoningModeInput.addEventListener('change', (event) => {
+          const effortInput = document.getElementById('reasoningEffort');
+          if (!effortInput) {
+            return;
+          }
+
+          effortInput.disabled = event.target.value === 'disabled';
           if (effortInput.disabled) {
             effortInput.value = '';
           }
@@ -1796,6 +1945,8 @@ export class ProviderManagementPanel {
         'deployment',
         'apiVersion',
         'temperature',
+        'reasoningMode',
+        'reasoningEffort',
         'deepseekThinking',
         'deepseekReasoningEffort'
       ].forEach((id) => {
@@ -1804,10 +1955,16 @@ export class ProviderManagementPanel {
           input.addEventListener('input', () => {
             clearModelTestState();
             schedulePreviewUpdate();
+            if (id === 'customModel') {
+              refreshReasoningModeOptions();
+            }
           });
           input.addEventListener('change', () => {
             clearModelTestState();
             schedulePreviewUpdate();
+            if (id === 'modelPreset' || id === 'customModel') {
+              refreshReasoningModeOptions();
+            }
           });
         }
       });

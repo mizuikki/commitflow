@@ -152,6 +152,49 @@ suite('config', () => {
       assert.strictEqual(profile?.inference?.deepseek, undefined);
     });
 
+    test('normalizes shared reasoning settings for OpenAI-compatible providers', async () => {
+      const { normalizeProviderProfile } = await import('../../provider-types');
+      const profile = normalizeProviderProfile({
+        id: 'profile-1',
+        name: 'OpenRouter Work',
+        providerId: 'openrouter',
+        driverKind: 'openai',
+        model: 'openai/gpt-5.4',
+        auth: { scheme: 'bearer' },
+        inference: {
+          reasoning: {
+            mode: 'enabled',
+            effort: 'high'
+          }
+        }
+      });
+
+      assert.deepStrictEqual(profile?.inference?.reasoning, {
+        mode: 'enabled',
+        effort: 'high'
+      });
+    });
+
+    test('drops invalid shared reasoning values during normalization', async () => {
+      const { normalizeProviderProfile } = await import('../../provider-types');
+      const profile = normalizeProviderProfile({
+        id: 'profile-1',
+        name: 'Groq Work',
+        providerId: 'groq',
+        driverKind: 'openai',
+        model: 'openai/gpt-oss-120b',
+        auth: { scheme: 'bearer' },
+        inference: {
+          reasoning: {
+            mode: 'automatic',
+            effort: 'unsupported'
+          }
+        }
+      });
+
+      assert.strictEqual(profile?.inference, undefined);
+    });
+
     test('rejects legacy flat provider profiles', async () => {
       const { normalizeProviderProfile } = await import('../../provider-types');
       const profile = normalizeProviderProfile({
@@ -201,6 +244,15 @@ suite('config', () => {
       });
     });
 
+    test('creates shared reasoning defaults for OpenAI-compatible reasoning providers', async () => {
+      const { createDefaultProfileDraft } = await import('../../provider-registry');
+
+      for (const providerId of ['openai', 'azure-openai', 'openrouter', 'groq', 'ollama', 'lmstudio'] as const) {
+        const draft = createDefaultProfileDraft(providerId);
+        assert.deepStrictEqual(draft.inference.reasoning, { mode: 'default' });
+      }
+    });
+
     test('validates DeepSeek inference settings', async () => {
       const { validateProviderProfile } = await import('../../provider-registry');
       const errors = validateProviderProfile({
@@ -220,6 +272,26 @@ suite('config', () => {
 
       assert.ok(errors.some((error: string) => error.includes('DeepSeek thinking')));
       assert.ok(errors.some((error: string) => error.includes('DeepSeek reasoning effort')));
+    });
+
+    test('validates reasoning settings against provider-specific effort values', async () => {
+      const { validateProviderProfile } = await import('../../provider-registry');
+      const errors = validateProviderProfile({
+        id: 'profile-1',
+        name: 'Groq Broken',
+        providerId: 'groq',
+        driverKind: 'openai',
+        model: 'openai/gpt-oss-120b',
+        auth: { scheme: 'bearer' },
+        inference: {
+          reasoning: {
+            mode: 'enabled',
+            effort: 'max'
+          }
+        }
+      } as any);
+
+      assert.ok(errors.some((error: string) => error.includes('Reasoning effort')));
     });
   });
 

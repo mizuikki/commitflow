@@ -184,6 +184,109 @@ suite('commands', () => {
       assert.strictEqual((payload as any).reasoning_effort, undefined);
       assert.strictEqual(payload.temperature, 0.2);
     });
+
+    test('buildOpenAIChatCompletionPayload maps shared reasoning settings for OpenAI-family providers', async () => {
+      const { buildOpenAIChatCompletionPayload } = await import('../../openai-utils');
+      const cases = [
+        {
+          providerId: 'openai',
+          model: 'gpt-5.5',
+          reasoning: { mode: 'enabled', effort: 'high' },
+          expected: { reasoning_effort: 'high' }
+        },
+        {
+          providerId: 'azure-openai',
+          model: 'gpt-5.5',
+          reasoning: { mode: 'disabled' },
+          expected: { reasoning_effort: 'none' }
+        },
+        {
+          providerId: 'openrouter',
+          model: 'openai/gpt-5.4',
+          reasoning: { mode: 'enabled', effort: 'high' },
+          expected: { reasoning: { enabled: true, effort: 'high' } }
+        },
+        {
+          providerId: 'groq',
+          model: 'openai/gpt-oss-120b',
+          reasoning: { mode: 'default', effort: 'low' },
+          expected: { reasoning_effort: 'low' }
+        },
+        {
+          providerId: 'ollama',
+          model: 'qwen3',
+          reasoning: { mode: 'enabled', effort: 'max' },
+          expected: { reasoning_effort: 'max' }
+        },
+        {
+          providerId: 'lmstudio',
+          model: 'openai/gpt-oss-20b',
+          reasoning: { mode: 'disabled' },
+          expected: { reasoning_effort: 'none' }
+        }
+      ] as const;
+
+      for (const testCase of cases) {
+        const payload = buildOpenAIChatCompletionPayload(
+          [{ role: 'user', content: 'hello' }],
+          {
+            id: 'profile-1',
+            name: testCase.providerId,
+            providerId: testCase.providerId,
+            driverKind: 'openai',
+            model: testCase.model,
+            auth: { scheme: testCase.providerId === 'ollama' || testCase.providerId === 'lmstudio' ? 'none' : 'bearer' },
+            inference: { reasoning: testCase.reasoning }
+          }
+        );
+
+        assert.deepStrictEqual(
+          Object.fromEntries(
+            Object.keys(testCase.expected).map((key) => [key, (payload as any)[key]])
+          ),
+          testCase.expected
+        );
+      }
+    });
+
+    test('buildOpenAIChatCompletionPayload uses a portable effort when reasoning is explicitly enabled', async () => {
+      const { buildOpenAIChatCompletionPayload } = await import('../../openai-utils');
+      const payload = buildOpenAIChatCompletionPayload(
+        [{ role: 'user', content: 'hello' }],
+        {
+          id: 'profile-1',
+          name: 'OpenAI',
+          providerId: 'openai',
+          driverKind: 'openai',
+          model: 'gpt-5.5',
+          auth: { scheme: 'bearer' },
+          inference: { reasoning: { mode: 'enabled' } }
+        }
+      );
+
+      assert.strictEqual((payload as any).reasoning_effort, 'medium');
+    });
+
+    test('buildOpenAIChatCompletionPayload omits unsupported Groq GPT-OSS disabled reasoning', async () => {
+      const { buildOpenAIChatCompletionPayload } = await import('../../openai-utils');
+      const payload = buildOpenAIChatCompletionPayload(
+        [{ role: 'user', content: 'hello' }],
+        {
+          id: 'profile-1',
+          name: 'Groq GPT-OSS',
+          providerId: 'groq',
+          driverKind: 'openai',
+          model: 'openai/gpt-oss-120b',
+          auth: { scheme: 'bearer' },
+          inference: { reasoning: { mode: 'disabled', effort: 'high' } }
+        }
+      );
+
+      assert.strictEqual(
+        Object.prototype.hasOwnProperty.call(payload, 'reasoning_effort'),
+        false
+      );
+    });
   });
 
   suite('validateTemperatureInput', () => {
