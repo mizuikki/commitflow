@@ -24,6 +24,20 @@ export interface ProviderConnectionConfig {
 export type DeepSeekThinkingMode = 'enabled' | 'disabled';
 export type DeepSeekReasoningEffort = 'high' | 'max';
 
+export type ProviderReasoningMode = 'default' | 'disabled' | 'enabled';
+export type ProviderReasoningEffort =
+  | 'minimal'
+  | 'low'
+  | 'medium'
+  | 'high'
+  | 'xhigh'
+  | 'max';
+
+export interface ProviderReasoningConfig {
+  mode?: ProviderReasoningMode;
+  effort?: ProviderReasoningEffort;
+}
+
 export interface DeepSeekInferenceConfig {
   thinking?: DeepSeekThinkingMode;
   reasoningEffort?: DeepSeekReasoningEffort;
@@ -31,6 +45,7 @@ export interface DeepSeekInferenceConfig {
 
 export interface ProviderInferenceConfig {
   temperature?: number;
+  reasoning?: ProviderReasoningConfig;
   deepseek?: DeepSeekInferenceConfig;
 }
 
@@ -85,6 +100,21 @@ function normalizeDeepSeekReasoningEffort(value: unknown): DeepSeekReasoningEffo
   return value === 'high' || value === 'max' ? value : undefined;
 }
 
+function normalizeReasoningMode(value: unknown): ProviderReasoningMode | undefined {
+  return value === 'default' || value === 'disabled' || value === 'enabled' ? value : undefined;
+}
+
+function normalizeReasoningEffort(value: unknown): ProviderReasoningEffort | undefined {
+  return value === 'minimal' ||
+    value === 'low' ||
+    value === 'medium' ||
+    value === 'high' ||
+    value === 'xhigh' ||
+    value === 'max'
+    ? value
+    : undefined;
+}
+
 function normalizeConnection(value: unknown): ProviderConnectionConfig | undefined {
   if (!value || typeof value !== 'object') {
     return undefined;
@@ -107,6 +137,10 @@ function normalizeInference(value: unknown, providerId: ProviderId): ProviderInf
   }
 
   const raw = value as Record<string, unknown>;
+  const rawReasoning =
+    raw.reasoning && typeof raw.reasoning === 'object'
+      ? (raw.reasoning as Record<string, unknown>)
+      : undefined;
   const rawDeepSeek =
     raw.deepseek && typeof raw.deepseek === 'object'
       ? (raw.deepseek as Record<string, unknown>)
@@ -118,8 +152,18 @@ function normalizeInference(value: unknown, providerId: ProviderId): ProviderInf
           reasoningEffort: normalizeDeepSeekReasoningEffort(rawDeepSeek.reasoningEffort)
         }
       : undefined;
+  const reasoning = rawReasoning
+    ? {
+        mode: normalizeReasoningMode(rawReasoning.mode),
+        effort: normalizeReasoningEffort(rawReasoning.effort)
+      }
+    : undefined;
   const inference: ProviderInferenceConfig = {
     temperature: normalizeTemperature(raw.temperature),
+    reasoning:
+      reasoning && Object.values(reasoning).some((item) => item !== undefined)
+        ? reasoning
+        : undefined,
     deepseek:
       deepseek && Object.values(deepseek).some((item) => item !== undefined)
         ? deepseek

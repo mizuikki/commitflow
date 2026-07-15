@@ -84,6 +84,8 @@ CommitFlow supports concrete provider presets backed by a few runtime drivers:
 
 Provider profiles store provider identity, runtime driver, auth scheme, connection settings, and inference settings separately. The model field offers built-in presets maintained from provider documentation plus a `Custom model ID` option for unreleased, local, deployment-specific, or OpenAI-compatible models. Local providers such as Ollama and LM Studio usually use custom model IDs or models fetched with `Load Models`. Azure API version is no longer mixed into generic provider config. API keys are stored separately in VS Code SecretStorage. `Test Connection` checks basic connectivity, while `Test Model Response` sends a minimal prompt and verifies that the chosen model can actually answer.
 
+OpenAI, Azure OpenAI, OpenRouter, Groq, Ollama, and LM Studio profiles expose shared Thinking and Reasoning Effort controls in the provider panel. `Provider Default` omits reasoning fields, `Disabled` maps to the provider's off value when supported, and `Enabled` uses the selected effort (or the provider default; the other OpenAI-compatible drivers use the portable `medium` level when no effort is selected). Available effort levels are provider-specific and can still depend on the selected model. DeepSeek keeps its native `enabled`/`disabled` and `high`/`max` controls. Custom OpenAI-compatible endpoints do not receive reasoning fields automatically.
+
 ## Commands
 
 | Command | Description |

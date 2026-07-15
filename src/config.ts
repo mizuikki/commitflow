@@ -15,6 +15,9 @@ export type {
   ProviderConnectionConfig,
   ProviderId,
   ProviderInferenceConfig,
+  ProviderReasoningConfig,
+  ProviderReasoningEffort,
+  ProviderReasoningMode,
   ProviderProfile,
   ProviderProfileInput,
   ResolvedProviderProfile

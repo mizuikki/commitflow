@@ -5,6 +5,7 @@ import {
   DriverKind,
   ProviderConnectionConfig,
   ProviderId,
+  ProviderReasoningEffort,
   ProviderInferenceConfig,
   ProviderProfile
 } from './provider-types';
@@ -18,6 +19,7 @@ export interface ProviderCatalogEntry {
   driverKind: DriverKind;
   authScheme: AuthScheme;
   supportsModelListing: boolean;
+  reasoningEfforts?: ProviderReasoningEffort[];
   defaults?: {
     connection?: ProviderConnectionConfig;
   };
@@ -33,6 +35,7 @@ export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
     driverKind: 'openai',
     authScheme: 'bearer',
     supportsModelListing: true,
+    reasoningEfforts: ['minimal', 'low', 'medium', 'high', 'xhigh'],
     requiredFields: []
   },
   {
@@ -43,6 +46,7 @@ export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
     driverKind: 'azure-openai',
     authScheme: 'api-key',
     supportsModelListing: false,
+    reasoningEfforts: ['minimal', 'low', 'medium', 'high', 'xhigh'],
     requiredFields: ['endpoint', 'deployment', 'apiVersion']
   },
   {
@@ -88,6 +92,7 @@ export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
     driverKind: 'openai',
     authScheme: 'bearer',
     supportsModelListing: true,
+    reasoningEfforts: ['minimal', 'low', 'medium', 'high', 'xhigh'],
     defaults: {
       connection: {
         baseURL: 'https://openrouter.ai/api/v1'
@@ -103,6 +108,7 @@ export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
     driverKind: 'openai',
     authScheme: 'bearer',
     supportsModelListing: true,
+    reasoningEfforts: ['low', 'medium', 'high'],
     defaults: {
       connection: {
         baseURL: 'https://api.groq.com/openai/v1'
@@ -118,6 +124,7 @@ export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
     driverKind: 'openai',
     authScheme: 'none',
     supportsModelListing: true,
+    reasoningEfforts: ['low', 'medium', 'high', 'max'],
     defaults: {
       connection: {
         baseURL: 'http://localhost:11434/v1'
@@ -133,6 +140,7 @@ export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
     driverKind: 'openai',
     authScheme: 'none',
     supportsModelListing: true,
+    reasoningEfforts: ['low', 'medium', 'high'],
     defaults: {
       connection: {
         baseURL: 'http://localhost:1234/v1'
@@ -156,6 +164,15 @@ const PROVIDER_REGISTRY = new Map(PROVIDER_CATALOG.map((entry) => [entry.id, ent
 const DEEPSEEK_THINKING_MODES: DeepSeekThinkingMode[] = ['enabled', 'disabled'];
 const DEEPSEEK_REASONING_EFFORTS: DeepSeekReasoningEffort[] = ['high', 'max'];
 
+export const OPENAI_COMPATIBLE_REASONING_PROVIDER_IDS: ProviderId[] = [
+  'openai',
+  'azure-openai',
+  'openrouter',
+  'groq',
+  'ollama',
+  'lmstudio'
+];
+
 export function getProviderCatalogEntry(providerId: ProviderId): ProviderCatalogEntry {
   const entry = PROVIDER_REGISTRY.get(providerId);
   if (!entry) {
@@ -171,6 +188,14 @@ export function getProviderLabel(providerId: ProviderId): string {
 
 export function supportsModelListing(profile: ProviderProfile): boolean {
   return getProviderCatalogEntry(profile.providerId).supportsModelListing;
+}
+
+export function supportsProviderReasoning(providerId: ProviderId): boolean {
+  return OPENAI_COMPATIBLE_REASONING_PROVIDER_IDS.includes(providerId);
+}
+
+export function getProviderReasoningEfforts(providerId: ProviderId): ProviderReasoningEffort[] {
+  return [...(getProviderCatalogEntry(providerId).reasoningEfforts ?? [])];
 }
 
 export function validateProviderProfile(profile: ProviderProfile): string[] {
@@ -229,12 +254,36 @@ export function validateProviderProfile(profile: ProviderProfile): string[] {
     errors.push('DeepSeek reasoning effort must be high or max.');
   }
 
+  const reasoning = profile.inference?.reasoning;
+  if (reasoning !== undefined && !supportsProviderReasoning(profile.providerId)) {
+    errors.push(`Reasoning settings are not supported by ${entry.label}.`);
+  }
+  if (
+    reasoning?.mode !== undefined &&
+    !['default', 'disabled', 'enabled'].includes(reasoning.mode)
+  ) {
+    errors.push('Reasoning mode must be default, disabled, or enabled.');
+  }
+  if (
+    reasoning?.effort !== undefined &&
+    !getProviderReasoningEfforts(profile.providerId).includes(reasoning.effort)
+  ) {
+    errors.push(`Reasoning effort is not supported by ${entry.label}.`);
+  }
+
   return errors;
 }
 
 function createDefaultInferenceConfig(providerId: ProviderId): ProviderInferenceConfig {
   return {
     temperature: 0.7,
+    ...(supportsProviderReasoning(providerId)
+      ? {
+          reasoning: {
+            mode: 'default' as const
+          }
+        }
+      : {}),
     ...(providerId === 'deepseek'
       ? {
           deepseek: {

@@ -9,6 +9,8 @@ import { createOpenAIClient } from './api-utils';
 import { logDebug } from './logger';
 import { recordLastRenderedPrompt } from './prompt-inspection';
 import { ProviderRequestOptions } from './provider-request-options';
+import { supportsProviderReasoning } from './provider-registry';
+import { ProviderReasoningEffort } from './provider-types';
 
 function coerceChatMessageContentToString(content: unknown): string {
   if (typeof content === 'string') {
@@ -47,19 +49,21 @@ type OpenAICompatibleMessage = ChatCompletionMessageParam & {
   name?: string;
 };
 
-type DeepSeekChatCompletionCreateParams = Omit<
+type OpenAICompatibleReasoning = {
+  enabled?: boolean;
+  effort?: ProviderReasoningEffort;
+};
+
+type OpenAICompatibleChatCompletionPayload = Omit<
   ChatCompletionCreateParamsNonStreaming,
-  'reasoning_effort'
+  'reasoning_effort' | 'reasoning'
 > & {
   thinking?: {
     type: 'enabled' | 'disabled';
   };
-  reasoning_effort?: 'high' | 'max';
+  reasoning_effort?: ProviderReasoningEffort | 'none';
+  reasoning?: OpenAICompatibleReasoning;
 };
-
-type OpenAICompatibleChatCompletionPayload =
-  | ChatCompletionCreateParamsNonStreaming
-  | DeepSeekChatCompletionCreateParams;
 
 type OpenAICompatibleResponse = {
   choices?: Array<{
@@ -179,7 +183,7 @@ export function buildOpenAIChatCompletionPayload(
 ): OpenAICompatibleChatCompletionPayload {
   const temperature = options.temperature ?? profile.inference?.temperature ?? 0.7;
   const normalizedMessages = prepareMessagesForOpenAICompatibleAPI(messages);
-  const payload: DeepSeekChatCompletionCreateParams = {
+  const payload: OpenAICompatibleChatCompletionPayload = {
     model: profile.model,
     messages: normalizedMessages,
     temperature,
@@ -193,6 +197,27 @@ export function buildOpenAIChatCompletionPayload(
     payload.thinking = { type: thinking };
     if (thinking === 'enabled' && profile.inference?.deepseek?.reasoningEffort) {
       payload.reasoning_effort = profile.inference.deepseek.reasoningEffort;
+    }
+  } else if (supportsProviderReasoning(profile.providerId)) {
+    const reasoning = profile.inference?.reasoning;
+    const mode = reasoning?.mode ?? 'default';
+    const effort = reasoning?.effort;
+
+    if (profile.providerId === 'openrouter') {
+      if (mode !== 'default' || effort) {
+        payload.reasoning = {
+          ...(mode === 'disabled' ? { enabled: false } : {}),
+          ...(mode === 'enabled' ? { enabled: true } : {}),
+          ...(effort ? { effort } : {})
+        };
+      }
+    } else if (mode === 'disabled') {
+      payload.reasoning_effort = 'none';
+    } else if (effort) {
+      payload.reasoning_effort = effort;
+    } else if (mode === 'enabled') {
+      // `medium` is the common interoperable enabled level across the supported drivers.
+      payload.reasoning_effort = 'medium';
     }
   }
 
@@ -219,7 +244,6 @@ export async function requestOpenAIChatCompletion(
   const openai = createOpenAIApi(resolvedProfile);
   const { profile } = resolvedProfile;
   const payload = buildOpenAIChatCompletionPayload(messages, profile, options);
-  const deepseekPayload = payload as DeepSeekChatCompletionCreateParams;
   logDebug(
     'OpenAI-family payload prepared',
     {
@@ -227,9 +251,13 @@ export async function requestOpenAIChatCompletion(
       model: profile.model,
       temperature: payload.temperature,
       deepseekThinking:
-        profile.providerId === 'deepseek' ? deepseekPayload.thinking?.type : undefined,
+        profile.providerId === 'deepseek' ? payload.thinking?.type : undefined,
       deepseekReasoningEffort:
-        profile.providerId === 'deepseek' ? deepseekPayload.reasoning_effort : undefined,
+        profile.providerId === 'deepseek' ? payload.reasoning_effort : undefined,
+      reasoningMode:
+        profile.providerId !== 'deepseek' ? profile.inference?.reasoning?.mode : undefined,
+      reasoningEffort:
+        profile.providerId !== 'deepseek' ? payload.reasoning_effort ?? payload.reasoning?.effort : undefined,
       messageSummary: sanitizeMessagesForLogging(payload.messages)
     },
     resourceUri
