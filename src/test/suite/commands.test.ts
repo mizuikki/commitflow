@@ -282,7 +282,10 @@ suite('commands', () => {
         }
       );
 
-      assert.strictEqual((payload as any).reasoning_effort, undefined);
+      assert.strictEqual(
+        Object.prototype.hasOwnProperty.call(payload, 'reasoning_effort'),
+        false
+      );
     });
   });
 
